@@ -2,11 +2,11 @@ import { Either, either, Ok, Err } from './either';
 import * as Ei from './either';
 
 export {Either, either, Ok, Err, Ei}
-export type ParserF<S, A> = (src: S) => Either<S, [A, S]>;
+export type ParserF<S, A> = (src: S) => Either<string, [A, S]>;
 
 
 export class Parser<S, A> {
-  parse : ParserF<S, A>;
+  readonly parse : ParserF<S, A>;
 
   constructor(parse : ParserF<S, A>) {
     this.parse = parse;
@@ -52,7 +52,7 @@ export class Parser<S, A> {
     });
   }
 
-  or<B>(other: Parser<S, B>): Parser<S, A | B> {
+  or<B>(other: Parser<S, A>): Parser<S, A> {
     // @ts-ignore
     return parser(src => {
       const ea = this.parse(src);

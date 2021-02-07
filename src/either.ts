@@ -1,4 +1,4 @@
-export type Either<E, A> = {ok: A} | {err: E};
+export type Either<E, A> = Readonly<{ok: A} | {err: E}>;
 
 export const Ok = <E, A>(ok: A): Either<E, A> => ({ok});
 export const Err = <E, A>(err: E): Either<E, A> => ({err});
