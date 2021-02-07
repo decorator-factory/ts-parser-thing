@@ -1,4 +1,4 @@
-import { Parser, Ok, Err, parser } from './parser';
+import { Parser, Either, Ok, Err, parser } from './parser';
 import * as Comb from './combinators';
 
 
@@ -33,10 +33,19 @@ export class Lang<T extends string>{
   reading<A>(t: string, read: (content: string) => A): TokenParser<T, A> {
     return this.oneOf(t).map(({content}) => read(content));
   }
-
-  many<A>(single: TokenParser<T, A>): TokenParser<T, A[]> {
-    return single
-      .flatMap(a => this.many(single).map(items => [a, ...items]))
-      .or(Comb.always([]));
-  }
 }
+
+
+export const consume =
+  <T extends string, A>(
+    parser: TokenParser<T, A>,
+    source: TokenStream<T>
+  ): Either<string, A> => {
+    const ea = parser.parse(source);
+    if ('err' in ea)
+      return Err(ea.err);
+    const [a, rest] = ea.ok;
+    if (rest.length !== 0)
+      return Err(`Syntax error at position ${rest[0].position}`);
+    return Ok(a);
+  }

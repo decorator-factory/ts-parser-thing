@@ -1,12 +1,7 @@
-import { Op, Ops, Expr, ParseOptions } from './ast';
+import { Op, Ops, Expr, App, Name, Num, ParseOptions } from './ast';
 
 
 const never = (msg: string = 'This should never happen'): any => { throw new Error(msg) };
-
-
-const apply =
-  (fun: Expr, arg: Expr): Expr =>
-    ({tag: 'app', fun, arg});
 
 
 const opsToStream: (ops: Ops) => Iterable<{op: Op}|{app: Expr}> =
@@ -40,7 +35,7 @@ export const shuntingYard = (
     const op = opStack.pop() || never();
     const right: Expr = exprStack.pop() || never();
     const left: Expr = exprStack.pop() || never();
-    const app: Expr = apply(apply({tag: 'name', name: op.value}, left), right);
+    const app: Expr = App(App(Name(op.value), left), right);
     exprStack.push(app);
   }
 

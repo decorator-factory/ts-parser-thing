@@ -10,7 +10,7 @@ const L = new Lang<Tok>();
 type P<A> = TokenParser<Tok, A>;
 
 
-const makeParser = (options: ParseOptions): P<Expr> => {
+export const makeParser = (options: ParseOptions): P<Expr> => {
   // forward reference
   const exprParser = Comb.lazy(() => exprParser_);
 
