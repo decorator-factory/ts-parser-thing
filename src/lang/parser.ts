@@ -49,7 +49,7 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
 
   // `atomic` is something that doesn't change the parsing result
   // if you surround it with parentheses
-  const atomic = num.or(str).or(name).or(paren).or(lambda);
+  const atomic: P<Expr> = Comb.lazy(() => _opSection).or(num).or(str).or(name).or(paren).or(lambda);
 
   // Operator section
   const _leftSection =
@@ -94,7 +94,7 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
   const opExpr = _operatorList.map(ops => shuntingYard(ops, options));
 
   // Entry point
-  const exprParser_ = _opSection.or(opExpr);
+  const exprParser_ = opExpr;
 
   return exprParser_;
 }
