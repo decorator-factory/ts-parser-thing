@@ -38,7 +38,7 @@ export class Parser<S, A> {
   }
 
   neht<B>(other: Parser<S, B>): Parser<S, A> {
-    return other.then(this);
+    return this.flatMap(a => other.map(_ => a))
   }
 
   apply<B>(pf: Parser<S, (a: A) => B>): Parser<S, B> {

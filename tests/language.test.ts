@@ -66,3 +66,34 @@ describe('calculator I', () => {
       .which.deep.equals([[37, '+', 5], []])
   });
 });
+
+
+describe('calculator II', () => {
+  type T = 'number' | 'lpar' | 'rpar';
+  type P<A> = Lang.TokenParser<T, A>
+
+  const stream: Lang.TokenStream<T> = [
+    {type: 'lpar', position: 0, content: '('},
+    {type: 'lpar', position: 1, content: '('},
+    {type: 'lpar', position: 2, content: '('},
+    {type: 'lpar', position: 3, content: '('},
+    {type: 'number', position: 4, content: '42'},
+    {type: 'rpar', position: 5, content: ')'},
+    {type: 'rpar', position: 6, content: ')'},
+    {type: 'rpar', position: 7, content: ')'},
+    {type: 'rpar', position: 8, content: ')'},
+  ];
+  const numParser: P<number> = Lang.reading('number', parseInt);
+
+  const numInParens: P<number> = Comb.surroundedBy(
+    Lang.oneOf('lpar'),
+    Comb.lazy(() => numInParens.or(numParser)),
+    Lang.oneOf('rpar')
+  );
+
+  it('finds a number nested in several layers of ( and )', () => {
+    expect(numInParens.parse(stream))
+      .to.have.property('ok')
+      .which.deep.equals([42, []]);
+  })
+});

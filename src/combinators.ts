@@ -43,3 +43,9 @@ export const concats =
         (acc, next) => acc.flatMap(a_s => next.map(a => [...a_s, a])),
         always([])
       );
+
+export const lazy =
+  <S, A>(
+    get: () => Parser<S, A>
+  ): Parser<S, A> =>
+    parser(src => get().parse(src));
