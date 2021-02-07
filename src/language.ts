@@ -46,6 +46,6 @@ export const consume =
       return Err(ea.err);
     const [a, rest] = ea.ok;
     if (rest.length !== 0)
-      return Err(`Syntax error at position ${rest[0].position}`);
+      return Err(`Syntax error at position ${rest[0].position}, starting with ${rest[0].content}`);
     return Ok(a);
   }
