@@ -1,18 +1,6 @@
 import { Parser, Ok, Err, parser } from './parser';
 import * as Comb from './combinators';
 
-type TokenType =
-  | 'name'
-  | 'lpar'
-  | 'rpar'
-  | 'lbrace'
-  | 'rbrace'
-  | 'operator'
-  | 'infixName'
-
-type ExtraTokenType =
-  | 'whitespace'
-  | 'comment'
 
 export type Token<T extends string> = Readonly<{
   type: T;
@@ -20,11 +8,12 @@ export type Token<T extends string> = Readonly<{
   content: string;
 }>;
 
+
 export type TokenStream<T extends string> = Token<T>[];
+
 
 export type TokenParser<T extends string, A> = Parser<TokenStream<T>, A>;
 
-///
 
 export const EOI = 'Unexpected end of input';
 
