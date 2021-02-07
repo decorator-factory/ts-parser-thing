@@ -3,6 +3,7 @@ export type Expr =
   | {tag: 'app', fun: Expr, arg: Expr}
   | {tag: 'num', value: number}
   | {tag: 'str', value: string}
+  | {tag: 'table', pairs: [string, Expr][] }
   | LamT
 
 export type LamT =
@@ -34,6 +35,10 @@ export const Str =
 (value: string): Expr =>
   ({tag: 'str', value});
 
+export const Table =
+  (pairs: [string, Expr][]): Expr =>
+    ({tag: 'table', pairs});
+
 export const Lam =
   (argName: string, expr: Expr): Expr =>
     ({tag: 'lam', argName, expr, capturedNames: getCapturedNames(expr, [argName])});
@@ -54,6 +59,9 @@ const getCapturedNames = (expr: Expr, exclude: string[]): string[] => {
 
     case 'str':
       return [];
+
+    case 'table':
+      return expr.pairs.flatMap(([_, subexpr]) => getCapturedNames(subexpr, exclude));
 
     case 'lam':
       return expr.capturedNames.filter(name => !exclude.includes(name));

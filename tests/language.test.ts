@@ -4,8 +4,8 @@ import * as Comb from '../src/combinators';
 import { expect } from 'chai';
 
 describe('manyLazy', () => {
-  const L = new Lang.Lang<'foo'|'bar'>();
-  const stream: Lang.TokenStream<'foo'|'bar'> = [
+  const L = new Lang.Lang<'foo'|'bar'|'baz'>();
+  const stream: Lang.TokenStream<'foo'|'bar'|'baz'> = [
     {type: 'foo', position: 1, content: 'aaaaa'},
     {type: 'foo', position: 2, content: 'bbbbbbbbbbbbb'},
     {type: 'foo', position: 3, content: 'ccccccccc'},

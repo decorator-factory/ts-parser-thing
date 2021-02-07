@@ -7,6 +7,9 @@ export type Tok =
   | 'rp'
   | 'lbr'
   | 'rbr'
+  | 'lsq'
+  | 'rsq'
+  | 'comma'
   | 'col'
   | 'op'
   | 'infixName'
@@ -33,9 +36,12 @@ export const lex = (src: string): TokenStream<Tok> => {
     ['ws',        /\s+/                      ],
     ['lp',        /\(/                       ],
     ['rp',        /\)/                       ],
+    ['lsq',       /\[/                       ],
+    ['rsq',       /\]/                       ],
     ['lbr',       /\{/                       ],
     ['rbr',       /\}/                       ],
     ['col',       /:/                        ],
+    ['comma',     /,/                        ],
     ['name',      /(?![0-9])[a-zA-Z_0-9]+/   ],
     ['num',       /[-+]?(?:0|[1-9][0-9]*)/   ],
     ['op',        /[-+=*/%!|&^$.><?]+/       ],

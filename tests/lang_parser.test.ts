@@ -1,6 +1,6 @@
 import { makeParser, unparse } from '../src/lang/parser'
 import { lex } from '../src/lang/lexer';
-import { Expr, App, Name, Num, Lam, Str } from '../src/lang/ast';
+import { Expr, App, Name, Num, Lam, Str, Table } from '../src/lang/ast';
 import { consume } from '../src/language';
 import { expect } from 'chai';
 
@@ -154,4 +154,15 @@ describe('In this language', () => {
       .which.deep.equals(Str('Hello,\n"world"!'))
   })
 
+  it('maps are defined in square brackets', () => {
+    expect(consume(parser, lex('[a: 1, b: "Hello"]')))
+      .to.have.property('ok')
+      .which.deep.equals(Table([['a', Num(1)], ['b', Str("Hello")]]))
+  })
+
+  it('an optional trailing comma is permitted in a map', () => {
+    expect(consume(parser, lex('[a: 1, b: "Hello",]')))
+      .to.have.property('ok')
+      .which.deep.equals(Table([['a', Num(1)], ['b', Str("Hello")]]))
+  })
 })

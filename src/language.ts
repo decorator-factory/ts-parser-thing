@@ -19,7 +19,7 @@ export const EOI = 'Unexpected end of input';
 
 
 export class Lang<T extends string>{
-  oneOf(...allowed: string[]): TokenParser<T, Token<T>> {
+  oneOf(...allowed: T[]): TokenParser<T, Token<T>> {
     return parser(
       src =>
         src.length === 0
@@ -30,7 +30,7 @@ export class Lang<T extends string>{
     );
   }
 
-  reading<A>(t: string, read: (content: string) => A): TokenParser<T, A> {
+  reading<A>(t: T, read: (content: string) => A): TokenParser<T, A> {
     return this.oneOf(t).map(({content}) => read(content));
   }
 }

@@ -1,5 +1,6 @@
 import { Expr, LamT } from './ast';
 import { makeParser, unparse } from './parser';
+import { Map } from 'immutable';
 
 
 const lookupName = (name: string, env: Env): Value => {
@@ -25,10 +26,12 @@ export type Value =
   | {num: number}
   | {fun: LamT, closure: Env}
   | {native: NativeFn, name: string}
+  | {table: Map<string, Value>};
 
 
 const Str = (str: string): Value => ({str});
 const Num = (num: number): Value => ({num});
+const Table = (table: Map<string, Value>): Value => ({table});
 const Fun = (fun: LamT, closure: Env): Value => ({fun, closure});
 const Native = (name: string, native: (v: Value, e: Env) => Value): Value => ({name, native});
 
@@ -64,7 +67,7 @@ export const prettyPrint = (v: Value): string => {
   else if ('native' in v)
     return v.name;
   else
-    throw new Error(`${v} somehow got into prettyPrint`)
+    return '[' + [...v.table.entries()].map(([k, v]) => `${k}: ${prettyPrint(v)}`).join(', ') + ']'
 };
 
 
@@ -75,6 +78,9 @@ export const interpret = (expr: Expr, env: Env): Value => {
 
     case 'str':
       return Str(expr.value);
+
+    case 'table':
+      return Table(Map(expr.pairs.map(([k, subexpr]) => [k, interpret(subexpr, env)])));
 
     case 'name':
       return lookupName(expr.name, env);

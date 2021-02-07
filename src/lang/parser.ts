@@ -1,7 +1,7 @@
 import { Lang, TokenParser } from '../language'
 import * as Comb from '../combinators'
 import { Tok } from './lexer'
-import { Op, Ops, Expr, ParseOptions, Lam, App, Name, Num, Str } from './ast'
+import { Op, Ops, Expr, ParseOptions, Lam, App, Name, Num, Str, Table } from './ast'
 import { shuntingYard } from './shunting-yard'
 import { lex } from './lexer'
 
@@ -30,6 +30,22 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
   // Parenthesized expression
   const paren = inParen(exprParser);
 
+  // Table
+  const _tableRecord =
+    Comb.pair(
+      L.reading('name', n => n).neht(L.oneOf('col')),
+      exprParser
+    );
+
+  const _tableInnards: P<[string, Expr][]> =
+    Comb.many(_tableRecord.neht(L.oneOf('comma').or(L.oneOf('rsq').lookAhead())))
+
+  const table = Comb.surroundedBy(
+    L.oneOf('lsq'),
+    _tableInnards,
+    L.oneOf('rsq'),
+  ).map(Table);
+
   // Lambda
   const _makeLambda = (argNames: string[], expr: Expr): Expr =>
     argNames.reduceRight((acc, argName) => Lam(argName, acc), expr);
@@ -49,7 +65,14 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
 
   // `atomic` is something that doesn't change the parsing result
   // if you surround it with parentheses
-  const atomic: P<Expr> = Comb.lazy(() => _opSection).or(num).or(str).or(name).or(paren).or(lambda);
+  const atomic: P<Expr> =
+    Comb.lazy(() => opSection)
+    .or(num)
+    .or(str)
+    .or(name)
+    .or(paren)
+    .or(lambda)
+    .or(table);
 
   // Operator section
   const _leftSection =
@@ -64,7 +87,7 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
       L.reading('op', Name)
     )).map(([left, op]) => Lam('_', App(App(op, left), Name('_'))));
 
-  const _opSection = _leftSection.or(_rightSection);
+  const opSection = _leftSection.or(_rightSection);
 
   const application =
     Comb.manyAtLeast(atomic, 1, 'Malformed or ambiguous function application')
@@ -108,6 +131,7 @@ export const unparse = (expr: Expr): string => {
     case 'name': return isIdentifier(expr.name) ? expr.name : `(${expr.name})`;
     case 'num': return `${expr.value}`;
     case 'str': return JSON.stringify(expr.value);
+    case 'table': return '[' + expr.pairs.map(([k, v]) => `${k}: ${unparse(v)}`).join(', ') + ']'
     case 'app': return `(${unparse(expr.fun)} ${unparse(expr.arg)})`;
     case 'lam': return `{${expr.argName}: ${unparse(expr.expr)}}`;
   }

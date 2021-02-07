@@ -41,6 +41,16 @@ export class Parser<S, A> {
     return this.flatMap(a => other.map(_ => a))
   }
 
+  lookAhead(): Parser<S, A>{
+    return parser(src => {
+      const ea = this.parse(src);
+      if ('err' in ea)
+        return ea;
+      const [a, _rest] = ea.ok;
+      return Ok([a, src]);
+    });
+  }
+
   apply<B>(pf: Parser<S, (a: A) => B>): Parser<S, B> {
     return parser(src => {
       const ef = pf.parse(src);

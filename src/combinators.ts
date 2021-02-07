@@ -66,3 +66,9 @@ export const manyAtLeast =
       a_s.length >= atLeast
       ? always(a_s)
       : fail(failMsg))
+
+export const maybe =
+  <S, A>(
+    optional: Parser<S, A>
+  ): Parser<S, null> =>
+    optional.map(_ => null).or(always(null));
