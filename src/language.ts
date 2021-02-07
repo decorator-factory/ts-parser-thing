@@ -45,9 +45,9 @@ export class Lang<T extends string>{
     return this.oneOf(t).map(({content}) => read(content));
   }
 
-  manyLazy<A>(single: TokenParser<T, A>): TokenParser<T, A[]> {
+  many<A>(single: TokenParser<T, A>): TokenParser<T, A[]> {
     return single
-      .flatMap(a => this.manyLazy(single).map(items => [a, ...items]))
+      .flatMap(a => this.many(single).map(items => [a, ...items]))
       .or(Comb.always([]));
   }
 }

@@ -14,7 +14,7 @@ describe('manyLazy', () => {
   ];
 
   it('finds many occurences of a pattern in a stream', () => {
-    const p = L.manyLazy(L.oneOf('foo'));
+    const p = L.many(L.oneOf('foo'));
     expect(p.parse(stream))
       .to.deep.equal({
         ok: [ stream.slice(0, 3), stream.slice(3) ]
@@ -22,7 +22,7 @@ describe('manyLazy', () => {
   });
 
   it("doesn't fail when no pattern is found", () => {
-    const p = L.manyLazy(L.oneOf('baz'));
+    const p = L.many(L.oneOf('baz'));
     expect(p.parse(stream))
       .to.deep.equal({
         ok: [ [], stream ]
@@ -120,7 +120,7 @@ describe('calculator III', () => {
 
   const product =
     Comb.concat(
-      L.manyLazy(atomic.neht(L.oneOf('times'))),
+      L.many(atomic.neht(L.oneOf('times'))),
       atomic
     ).map(arr => arr.reduce((a, b) => a * b, 1));
 
@@ -153,6 +153,57 @@ describe('calculator III', () => {
       {type: 'rpar'  , position: 11, content: ')' },
       {type: 'times' , position: 12, content: '*' },
       {type: 'number', position: 13, content: '10'},
+      {type: 'rpar'  , position: 14, content: ')' },
+    ];
+    expect(product.parse(stream))
+      .to.have.property('ok')
+      .which.deep.equals([2 * (3 * 4 * (10 * 2) * 10), []]);
+  })
+});
+
+
+
+describe('calculator IV', () => {
+  type T = 'number' | 'lpar' | 'rpar' | 'times' | 'plus';
+  type P<A> = Lang.TokenParser<T, A>
+  const L = new Lang.Lang<T>();
+
+  const num = L.reading('number', parseInt);
+
+  const parenthesizedExpr: P<number> = Comb.surroundedBy(
+    L.oneOf('lpar'),
+    Comb.lazy(() => product),
+    L.oneOf('rpar')
+  );
+
+  const atomic = num.or(parenthesizedExpr);
+
+  const product =
+    Comb.concat(
+      L.many(atomic.neht(L.oneOf('times'))),
+      atomic
+    ).map(arr => arr.reduce((a, b) => a * b, 1));
+
+  it('finds a product with parentheses', () => {
+    const stream: Lang.TokenStream<T> = [
+      {type: 'number', position: 0 , content: '2' },
+      {type: 'times' , position: 1 , content: '*' },
+      {type: 'lpar'  , position: 2 , content: '(' },
+      {type: 'number', position: 3 , content: '3' },
+      {type: 'plus'  , position: 4 , content: '+' },
+      {type: 'number', position: 5 , content: '4' },
+      {type: 'times' , position: 6 , content: '*' },
+      {type: 'lpar'  , position: 7 , content: '(' },
+      {type: 'number', position: 8 , content: '10'},
+      {type: 'times' , position: 9 , content: '*' },
+      {type: 'number', position: 10, content: '2' },
+      {type: 'rpar'  , position: 11, content: ')' },
+      {type: 'times' , position: 12, content: '*' },
+      {type: 'number', position: 13, content: '10'},
+      {type: 'times' , position: 12, content: '*' },
+      {type: 'number', position: 13, content: '10'},
+      {type: 'plus'  , position: 12, content: '+' },
+      {type: 'number', position: 13, content: '15'},
       {type: 'rpar'  , position: 14, content: ')' },
     ];
     expect(product.parse(stream))
