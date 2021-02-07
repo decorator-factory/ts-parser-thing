@@ -37,8 +37,12 @@ const runCode = (input: string): void => {
   let ast;
   try {
     const ea = consume(parser, tokens);
-    if ('err' in ea)
-      throw new Error(ea.err);
+    if ('err' in ea) {
+      console.log('Parse error:', ea.err);
+      console.log('Tokens:');
+      console.dir(tokens, {depth: null});
+      return;
+    }
     ast = ea.ok
   } catch (e) {
     console.log(e);
@@ -56,6 +60,7 @@ const runCode = (input: string): void => {
 
 prompt();
 rl.on('line', input => {
-  runCode(input);
+  if (input.trim() !== '')
+    runCode(input);
   prompt();
 });
