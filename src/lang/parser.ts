@@ -1,7 +1,7 @@
 import { Lang, TokenParser } from '../language'
 import * as Comb from '../combinators'
 import { Tok } from './lexer'
-import { Op, Ops, Expr, ParseOptions, Lam, App, Name } from './ast'
+import { Op, Ops, Expr, ParseOptions, Lam, App, Name, Num } from './ast'
 import { shuntingYard } from './shunting-yard'
 import { lex } from './lexer'
 
@@ -18,14 +18,16 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
   // forward referencing, because further parser need this
   const exprParser: P<Expr> = Comb.lazy(() => exprParser_);
 
-  const nameParser = L.reading('name', Name);
+  // Name
+  const name = L.reading('name', Name);
 
-  const numParser: P<Expr> =
-    L.reading('num', s => ({tag: 'num', value: parseInt(s)}));
+  // Number
+  const num = L.reading('num', s => Num(parseInt(s)));
 
+  // Parenthesized expression
   const paren = inParen(exprParser);
 
-  // Lambda parser
+  // Lambda
   const _makeLambda = (argNames: string[], expr: Expr): Expr =>
     argNames.reduceRight((acc, argName) => Lam(argName, acc), expr);
 
@@ -35,7 +37,7 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
     (args: string[]) =>
     L.oneOf('col').then(exprParser.map(expr => _makeLambda(args, expr)));
 
-  const lamParser =
+  const lambda =
     Comb.surroundedBy(
       L.oneOf('lbr'),
       _lamArgs.flatMap(_lamBody),
@@ -44,8 +46,9 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
 
   // `atomic` is something that doesn't change the parsing result
   // if you surround it with parentheses
-  const atomic = numParser.or(nameParser).or(paren).or(lamParser);
+  const atomic = num.or(name).or(paren).or(lambda);
 
+  // Operator section
   const _leftSection =
     inParen(Comb.pair(
       L.reading('op', Name),
@@ -77,6 +80,7 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
 
   const _infixOperator = _symbolInfixOp.or(_nameInfixOp);
 
+  // Infix operator application using the Shunting yard algorithm:
   const _operatorList: P<Ops> = Comb.pair(
     application,
     Comb.many(Comb.pair(_infixOperator, application))
