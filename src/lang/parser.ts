@@ -10,28 +10,20 @@ const L = new Lang<Tok>();
 type P<A> = TokenParser<Tok, A>;
 
 
+const inParen = <A>(p: P<A>): P<A> =>
+  Comb.surroundedBy(L.oneOf('lp'), p, L.oneOf('rp'))
+
+
 export const makeParser = (options: ParseOptions): P<Expr> => {
   // forward referencing, because further parser need this
-  const exprParser = Comb.lazy(() => exprParser_);
+  const exprParser: P<Expr> = Comb.lazy(() => exprParser_);
 
-  const nameParser: P<Expr> =
-    L.reading('name', Name) // foo
-
-    .or(Comb.surroundedBy(  // (+)
-      L.oneOf('lp'),
-      L.reading('op', Name),
-      L.oneOf('rp')
-    ));
+  const nameParser = L.reading('name', Name);
 
   const numParser: P<Expr> =
     L.reading('num', s => ({tag: 'num', value: parseInt(s)}));
 
-  const paren: P<Expr> =
-    Comb.surroundedBy(
-      L.oneOf('lp'),
-      exprParser,
-      L.oneOf('rp'),
-    )
+  const paren = inParen(exprParser);
 
   // Lambda parser
   const _makeLambda = (argNames: string[], expr: Expr): Expr =>
@@ -54,8 +46,14 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
   // if you surround it with parentheses
   const atomic = numParser.or(nameParser).or(paren).or(lamParser);
 
-  const appParser =
-    Comb.many(atomic)
+  const _opSection =
+    inParen(Comb.pair(
+      L.reading('op', Name),
+      Comb.many(atomic)
+    )).map(([first, rest]) => rest.reduce(App, first));
+
+  const application =
+    Comb.manyAtLeast(atomic, 1, 'Malformed or ambiguous function application')
         .map(([first, ...rest]) => rest.reduce(App, first));
 
   // Infix operator parser
@@ -72,8 +70,8 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
   const _infixOperator = _symbolInfixOp.or(_nameInfixOp);
 
   const _operatorList: P<Ops> = Comb.pair(
-    appParser,
-    Comb.many(Comb.pair(_infixOperator, appParser))
+    application,
+    Comb.many(Comb.pair(_infixOperator, application))
   ).map(
     ([initial, chunks]) => ({initial, chunks})
   )
@@ -81,7 +79,7 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
   const opExpr = _operatorList.map(ops => shuntingYard(ops, options));
 
   // Entry point
-  const exprParser_ = opExpr;
+  const exprParser_ = _opSection.or(opExpr);
 
   return exprParser_;
 }

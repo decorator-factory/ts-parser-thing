@@ -122,4 +122,16 @@ describe('In this language', () => {
 
     expect(a).to.deep.equal(b)
   })
+
+  it('an operator can be acquired by placing it inside ( and )', () => {
+    expect(consume(parser, lex('(+)')))
+      .to.have.property('ok')
+      .which.deep.equals(Name('+'))
+  })
+
+  it('an operator can be partially applied from the left, like a function', () => {
+    expect(consume(parser, lex('(+ 1)')))
+      .to.have.property('ok')
+      .which.deep.equals(App(Name('+'), Num(1)))
+  })
 })
