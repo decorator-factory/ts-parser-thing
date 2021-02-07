@@ -134,4 +134,11 @@ describe('In this language', () => {
       .to.have.property('ok')
       .which.deep.equals(App(Name('+'), Num(1)))
   })
+
+  it('an operator can be partially applied from the right, like a function', () => {
+    const a = consume(parser, lex('(2 ^)'));
+    const b = consume(parser, lex('{_: 2 ^ _}'));
+
+    expect(a).to.deep.equal(b)
+  })
 })

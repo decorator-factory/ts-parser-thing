@@ -46,11 +46,19 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
   // if you surround it with parentheses
   const atomic = numParser.or(nameParser).or(paren).or(lamParser);
 
-  const _opSection =
+  const _leftSection =
     inParen(Comb.pair(
       L.reading('op', Name),
       Comb.many(atomic)
     )).map(([first, rest]) => rest.reduce(App, first));
+
+  const _rightSection =
+    inParen(Comb.pair(
+      atomic,
+      L.reading('op', Name)
+    )).map(([left, op]) => Lam('_', App(App(op, left), Name('_'))));
+
+  const _opSection = _leftSection.or(_rightSection);
 
   const application =
     Comb.manyAtLeast(atomic, 1, 'Malformed or ambiguous function application')
