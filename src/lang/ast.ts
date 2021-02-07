@@ -3,13 +3,14 @@ export type Expr =
   | {tag: 'app', fun: Expr, arg: Expr}
   | {tag: 'num', value: number}
   | {tag: 'str', value: string}
+  | {tag: 'symbol', value: string}
   | {tag: 'table', pairs: [string, Expr][] }
   | LamT
 
 export type LamT =
   {tag: 'lam', argName: string, expr: Expr, capturedNames: string[]};
 
-export type Op = {type: 'symbol' | 'name', value: string}
+export type Op = {type: 'infix' | 'name', value: string}
 
 export type Ops = {initial: Expr, chunks: [Op, Expr][]}
 
@@ -35,6 +36,10 @@ export const Str =
 (value: string): Expr =>
   ({tag: 'str', value});
 
+export const Symbol =
+(value: string): Expr =>
+  ({tag: 'symbol', value});
+
 export const Table =
   (pairs: [string, Expr][]): Expr =>
     ({tag: 'table', pairs});
@@ -58,6 +63,9 @@ const getCapturedNames = (expr: Expr, exclude: string[]): string[] => {
       return [];
 
     case 'str':
+      return [];
+
+    case 'symbol':
       return [];
 
     case 'table':

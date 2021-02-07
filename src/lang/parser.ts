@@ -1,7 +1,7 @@
 import { Lang, TokenParser } from '../language'
 import * as Comb from '../combinators'
 import { Tok } from './lexer'
-import { Op, Ops, Expr, ParseOptions, Lam, App, Name, Num, Str, Table } from './ast'
+import { Op, Ops, Expr, ParseOptions, Lam, App, Name, Num, Str, Table, Symbol } from './ast'
 import { shuntingYard } from './shunting-yard'
 import { lex } from './lexer'
 
@@ -26,6 +26,9 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
 
   // String
   const str = L.reading('string1', eval).or(L.reading('string2', eval)).map(Str);
+
+  // Symbol
+  const symbol = L.oneOf('tilde').then(L.reading('name', Symbol));
 
   // Parenthesized expression
   const paren = inParen(exprParser);
@@ -72,6 +75,7 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
     .or(name)
     .or(paren)
     .or(lambda)
+    .or(symbol)
     .or(table);
 
   // Operator section
@@ -96,7 +100,7 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
   // Infix operator parser
   const _symbolInfixOp =
     L.reading<Op>('op',
-      value => ({type: 'symbol', value})
+      value => ({type: 'infix', value})
     );
 
   const _nameInfixOp =
@@ -131,6 +135,7 @@ export const unparse = (expr: Expr): string => {
     case 'name': return isIdentifier(expr.name) ? expr.name : `(${expr.name})`;
     case 'num': return `${expr.value}`;
     case 'str': return JSON.stringify(expr.value);
+    case 'symbol': return '~' + expr.value;
     case 'table': return '[' + expr.pairs.map(([k, v]) => `${k}: ${unparse(v)}`).join(', ') + ']'
     case 'app': return `(${unparse(expr.fun)} ${unparse(expr.arg)})`;
     case 'lam': return `{${expr.argName}: ${unparse(expr.expr)}}`;

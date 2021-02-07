@@ -24,12 +24,14 @@ export type NativeFn = (v: Value, e: Env) => Value;
 export type Value =
   | {str: string}
   | {num: number}
+  | {symbol: string}
   | {fun: LamT, closure: Env}
   | {native: NativeFn, name: string}
   | {table: Map<string, Value>};
 
 
 const Str = (str: string): Value => ({str});
+const Symbol = (symbol: string): Value => ({symbol});
 const Num = (num: number): Value => ({num});
 const Table = (table: Map<string, Value>): Value => ({table});
 const Fun = (fun: LamT, closure: Env): Value => ({fun, closure});
@@ -46,6 +48,12 @@ const asStr = (v: Value): string => {
   if (!('str' in v))
     throw new Error(`Expected string, got ${JSON.stringify(v)}`);
   return v.str;
+};
+
+const asSymb = (v: Value): string => {
+  if (!('symbol' in v))
+    throw new Error(`Expected string, got ${JSON.stringify(v)}`);
+  return v.symbol;
 };
 
 
@@ -66,6 +74,8 @@ export const prettyPrint = (v: Value): string => {
     return `${unparse(v.fun)} where ${envRepr(v.closure, v.fun.capturedNames)}`;
   else if ('native' in v)
     return v.name;
+  else if ('symbol' in v)
+    return '~' + v.symbol;
   else
     return '[' + [...v.table.entries()].map(([k, v]) => `${k}: ${prettyPrint(v)}`).join(', ') + ']'
 };
@@ -78,6 +88,9 @@ export const interpret = (expr: Expr, env: Env): Value => {
 
     case 'str':
       return Str(expr.value);
+
+    case 'symbol':
+      return Symbol(expr.value);
 
     case 'table':
       return Table(Map(expr.pairs.map(([k, subexpr]) => [k, interpret(subexpr, env)])));
@@ -134,14 +147,23 @@ const applyFunction = (fun: Value, arg: Value, env: Env): Value => {
   if ('native' in fun)
     return fun.native(arg, env);
 
-  if (!('fun' in fun))
-    throw new Error(`Trying to apply ${prettyPrint(fun)}, which isn't a function`);
+  if ('fun' in fun)
+    return interpret(
+      fun.fun.expr,
+      {
+        parent: fun.closure,
+        names: { [fun.fun.argName]: arg }
+      }
+    );
 
-  return interpret(
-    fun.fun.expr,
-    {
-      parent: fun.closure,
-      names: { [fun.fun.argName]: arg }
-    }
-  );
+  if ('table' in fun) {
+    if (!('symbol' in arg))
+      throw new Error(`Cannot index a map ${prettyPrint(fun)} with ${prettyPrint(arg)}`);
+    const rv = fun.table.get(arg.symbol);
+    if (rv === undefined)
+      throw new Error(`Key ${arg.symbol} not found in ${prettyPrint(fun)}`);
+    return rv;
+  }
+
+  throw new Error(`Trying to apply ${prettyPrint(fun)}, which isn't a function`);
 };

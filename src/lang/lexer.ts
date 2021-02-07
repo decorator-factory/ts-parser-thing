@@ -2,6 +2,7 @@ import {TokenStream} from '../language';
 
 export type Tok =
   | 'name'
+  | 'tilde'
   | 'num'
   | 'lp'
   | 'rp'
@@ -43,6 +44,7 @@ export const lex = (src: string): TokenStream<Tok> => {
     ['col',       /:/                        ],
     ['comma',     /,/                        ],
     ['name',      /(?![0-9])[a-zA-Z_0-9]+/   ],
+    ['tilde',     /~/                        ],
     ['num',       /[-+]?(?:0|[1-9][0-9]*)/   ],
     ['op',        /[-+=*/%!|&^$.><?]+/       ],
     ['infixName', /`(?![0-9])[a-zA-Z_0-9]+`/ ],
