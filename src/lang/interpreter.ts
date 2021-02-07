@@ -80,14 +80,7 @@ export const interpret = (expr: Expr, env: Env): Value => {
       return applyFunction(interpret(expr.fun, env), interpret(expr.arg, env), env);
 
     case 'lam':
-      return Fun(
-        expr,
-        env,
-        // {
-        //   parent: env.parent,
-        //   names: Object.fromEntries(Object.entries(env.names).filter(([k, v]) => expr.capturedNames.includes(k)))
-        // }
-      );
+      return Fun(expr, env);
   }
 };
 
@@ -109,7 +102,7 @@ const applyFunction = (fun: Value, arg: Value, env: Env): Value => {
     return fun.native(arg, env);
 
   if (!('fun' in fun))
-    throw new Error(`Trying to apply ${JSON.stringify(fun)}, which isn't a function`);
+    throw new Error(`Trying to apply ${prettyPrint(fun)}, which isn't a function`);
 
   return interpret(
     fun.fun.expr,
