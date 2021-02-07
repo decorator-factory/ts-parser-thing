@@ -73,6 +73,9 @@ export const interpret = (expr: Expr, env: Env): Value => {
     case 'num':
       return Num(expr.value);
 
+    case 'str':
+      return Str(expr.value);
+
     case 'name':
       return lookupName(expr.name, env);
 

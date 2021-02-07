@@ -1,7 +1,7 @@
 import { Lang, TokenParser } from '../language'
 import * as Comb from '../combinators'
 import { Tok } from './lexer'
-import { Op, Ops, Expr, ParseOptions, Lam, App, Name, Num } from './ast'
+import { Op, Ops, Expr, ParseOptions, Lam, App, Name, Num, Str } from './ast'
 import { shuntingYard } from './shunting-yard'
 import { lex } from './lexer'
 
@@ -23,6 +23,9 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
 
   // Number
   const num = L.reading('num', s => Num(parseInt(s)));
+
+  // String
+  const str = L.reading('string1', eval).or(L.reading('string2', eval)).map(Str);
 
   // Parenthesized expression
   const paren = inParen(exprParser);
@@ -46,7 +49,7 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
 
   // `atomic` is something that doesn't change the parsing result
   // if you surround it with parentheses
-  const atomic = num.or(name).or(paren).or(lambda);
+  const atomic = num.or(str).or(name).or(paren).or(lambda);
 
   // Operator section
   const _leftSection =
@@ -104,6 +107,7 @@ export const unparse = (expr: Expr): string => {
   switch (expr.tag) {
     case 'name': return isIdentifier(expr.name) ? expr.name : `(${expr.name})`;
     case 'num': return `${expr.value}`;
+    case 'str': return JSON.stringify(expr.value);
     case 'app': return `(${unparse(expr.fun)} ${unparse(expr.arg)})`;
     case 'lam': return `{${expr.argName}: ${unparse(expr.expr)}}`;
   }

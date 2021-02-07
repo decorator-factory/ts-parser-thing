@@ -10,6 +10,8 @@ export type Tok =
   | 'col'
   | 'op'
   | 'infixName'
+  | 'string1'
+  | 'string2'
 
 const getGroup = (m: RegExpMatchArray) => {
   for (const [k, v] of Object.entries(m.groups || {}))
@@ -38,6 +40,8 @@ export const lex = (src: string): TokenStream<Tok> => {
     ['num',       /[-+]?(?:0|[1-9][0-9]*)/   ],
     ['op',        /[-+=*/%!|&*^$]+/          ],
     ['infixName', /`(?![0-9])[a-zA-Z_0-9]+`/ ],
+    ['string1',   /'(?:\\.|[^'])*'/           ],
+    ['string2',   /"(?:\\.|[^"])*"/           ],
   );
   const tokens: TokenStream<Tok> = [];
   for (const m of src.matchAll(re)) {

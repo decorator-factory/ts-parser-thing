@@ -1,6 +1,6 @@
 import { makeParser, unparse } from '../src/lang/parser'
 import { lex } from '../src/lang/lexer';
-import { Expr, App, Name, Num, Lam } from '../src/lang/ast';
+import { Expr, App, Name, Num, Lam, Str } from '../src/lang/ast';
 import { consume } from '../src/language';
 import { expect } from 'chai';
 
@@ -141,4 +141,17 @@ describe('In this language', () => {
 
     expect(a).to.deep.equal(b)
   })
+
+  it('double-quoted string literals produce string values', () => {
+    expect(consume(parser, lex(`"Hellon't,\\nworld!"`)))
+      .to.have.property('ok')
+      .which.deep.equals(Str("Hellon't,\nworld!"))
+  })
+
+  it('single-quoted string literals produce string values', () => {
+    expect(consume(parser, lex(`'Hello,\\n"world"!'`)))
+      .to.have.property('ok')
+      .which.deep.equals(Str('Hello,\n"world"!'))
+  })
+
 })
