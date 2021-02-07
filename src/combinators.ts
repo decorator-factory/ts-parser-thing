@@ -51,6 +51,18 @@ export const lazy =
     parser(src => get().parse(src));
 
 export const many = <S, A>(single: Parser<S, A>): Parser<S, A[]> =>
-    single
-      .flatMap(a => many(single).map(items => [a, ...items]))
-      .or(always([]));
+  single
+    .flatMap(a => many(single).map(items => [a, ...items]))
+    .or(always([]));
+
+export const manyAtLeast =
+  <S, A>(
+    single: Parser<S, A>,
+    atLeast: number,
+    failMsg: string
+  ): Parser<S, A[]> =>
+    many(single)
+    .flatMap(a_s =>
+      a_s.length >= atLeast
+      ? always(a_s)
+      : fail(failMsg))
