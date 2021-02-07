@@ -28,7 +28,7 @@ export const concat =
   ): Parser<S, [...AS, A]> =>
     prev.flatMap(a_s => next.map(a => [...a_s, a]));
 
-export const tuple =
+export const pair =
     <S, A, B>(
       left: Parser<S, A>,
       right: Parser<S, B>,
