@@ -1,5 +1,5 @@
 import { Expr, LamT } from './ast';
-import { unparse } from './parser';
+import { makeParser, unparse } from './parser';
 
 
 const lookupName = (name: string, env: Env): Value => {
@@ -88,16 +88,40 @@ export const interpret = (expr: Expr, env: Env): Value => {
 };
 
 
-export const run = (expr: Expr): Value =>
-  interpret(
-    expr,
-    {
-      parent: null,
-      names: {
-        '+': Native('+', a => Native(`{b: ${prettyPrint(a)} + b}`, b => Num(asNum(a) + asNum(b))))
-      }
-    }
-  )
+const compose = (f1: Value, f2: Value): Value =>
+  Native(
+    `(${prettyPrint(f1)} . ${prettyPrint(f2)})`,
+    (arg: Value, env: Env) => applyFunction(f1, applyFunction(f2, arg, env), env)
+  );
+
+
+const GLOBAL_ENV: Env = {
+  parent: null,
+  names: {
+    '+': Native('(+)', a => Native(`(${prettyPrint(a)} +)`, b => Num(asNum(a) + asNum(b)))),
+    '-': Native('(-)', a => Native(`(${prettyPrint(a)} -)`, b => Num(asNum(a) - asNum(b)))),
+    '*': Native('(*)', a => Native(`(${prettyPrint(a)} *)`, b => Num(asNum(a) * asNum(b)))),
+    '^': Native('(^)', a => Native(`(${prettyPrint(a)} ^)`, b => Num(Math.pow(asNum(a), asNum(b))))),
+    '++': Native('(++)', a => Native(`(${prettyPrint(a)} ++)`, b => Str(asStr(a) + asStr(b)))),
+    '.': Native('(.)', a => Native(`(${prettyPrint(a)} . )`, b => compose(a, b))),
+  }
+};
+
+
+export const PARSER = makeParser({
+  priorities: {
+    '+': 6,
+    '-': 6,
+    '*': 8,
+    '^': 10,
+    '++': 10,
+  },
+  namePriority: 20,
+  defaultPriority: 5
+});
+
+
+export const run = (expr: Expr): Value => interpret(expr, GLOBAL_ENV);
 
 
 const applyFunction = (fun: Value, arg: Value, env: Env): Value => {
