@@ -170,13 +170,13 @@ describe('calculator IV', () => {
 
   const num = L.reading('number', parseInt);
 
-  const parenthesizedExpr: P<number> = Comb.surroundedBy(
+  const parenthesizedSum: P<number> = Comb.surroundedBy(
     L.oneOf('lpar'),
-    Comb.lazy(() => product),
+    Comb.lazy(() => sum),
     L.oneOf('rpar')
   );
 
-  const atomic = num.or(parenthesizedExpr);
+  const atomic = num.or(parenthesizedSum);
 
   const product =
     Comb.concat(
@@ -184,7 +184,13 @@ describe('calculator IV', () => {
       atomic
     ).map(arr => arr.reduce((a, b) => a * b, 1));
 
-  it('finds a product with parentheses', () => {
+  const sum =
+    Comb.concat(
+      L.many(product.neht(L.oneOf('plus'))),
+      product
+    ).map(arr => arr.reduce((a, b) => a + b, 0));
+
+  it('evaluates an expression with + and *', () => {
     const stream: Lang.TokenStream<T> = [
       {type: 'number', position: 0 , content: '2' },
       {type: 'times' , position: 1 , content: '*' },
@@ -195,7 +201,7 @@ describe('calculator IV', () => {
       {type: 'times' , position: 6 , content: '*' },
       {type: 'lpar'  , position: 7 , content: '(' },
       {type: 'number', position: 8 , content: '10'},
-      {type: 'times' , position: 9 , content: '*' },
+      {type: 'plus'  , position: 9 , content: '+' },
       {type: 'number', position: 10, content: '2' },
       {type: 'rpar'  , position: 11, content: ')' },
       {type: 'times' , position: 12, content: '*' },
@@ -204,10 +210,12 @@ describe('calculator IV', () => {
       {type: 'number', position: 13, content: '10'},
       {type: 'plus'  , position: 12, content: '+' },
       {type: 'number', position: 13, content: '15'},
-      {type: 'rpar'  , position: 14, content: ')' },
+      {type: 'plus'  , position: 14, content: '+' },
+      {type: 'number', position: 15, content: '20'},
+      {type: 'rpar'  , position: 16, content: ')' },
     ];
-    expect(product.parse(stream))
+    expect(sum.parse(stream))
       .to.have.property('ok')
-      .which.deep.equals([2 * (3 * 4 * (10 * 2) * 10), []]);
+      .which.deep.equals([2 * (3 + 4 * (10 + 2) * 10 * 10 + 15 + 20), []]);
   })
 });
