@@ -49,3 +49,8 @@ export const lazy =
     get: () => Parser<S, A>
   ): Parser<S, A> =>
     parser(src => get().parse(src));
+
+export const many = <S, A>(single: Parser<S, A>): Parser<S, A[]> =>
+    single
+      .flatMap(a => many(single).map(items => [a, ...items]))
+      .or(always([]));

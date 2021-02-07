@@ -14,7 +14,7 @@ describe('manyLazy', () => {
   ];
 
   it('finds many occurences of a pattern in a stream', () => {
-    const p = L.many(L.oneOf('foo'));
+    const p = Comb.many(L.oneOf('foo'));
     expect(p.parse(stream))
       .to.deep.equal({
         ok: [ stream.slice(0, 3), stream.slice(3) ]
@@ -22,7 +22,7 @@ describe('manyLazy', () => {
   });
 
   it("doesn't fail when no pattern is found", () => {
-    const p = L.many(L.oneOf('baz'));
+    const p = Comb.many(L.oneOf('baz'));
     expect(p.parse(stream))
       .to.deep.equal({
         ok: [ [], stream ]
@@ -120,7 +120,7 @@ describe('calculator III', () => {
 
   const product =
     Comb.concat(
-      L.many(atomic.neht(L.oneOf('times'))),
+      Comb.many(atomic.neht(L.oneOf('times'))),
       atomic
     ).map(arr => arr.reduce((a, b) => a * b, 1));
 
@@ -180,13 +180,13 @@ describe('calculator IV', () => {
 
   const product =
     Comb.concat(
-      L.many(atomic.neht(L.oneOf('times'))),
+      Comb.many(atomic.neht(L.oneOf('times'))),
       atomic
     ).map(arr => arr.reduce((a, b) => a * b, 1));
 
   const sum =
     Comb.concat(
-      L.many(product.neht(L.oneOf('plus'))),
+      Comb.many(product.neht(L.oneOf('plus'))),
       product
     ).map(arr => arr.reduce((a, b) => a + b, 0));
 

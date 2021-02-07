@@ -29,7 +29,7 @@ const makeParser = (options: ParseOptions): P<Expr> => {
   const atomic: P<Expr> = numParser.or(nameParser).or(paren);
 
   const appParser: P<Expr> =
-    L.many(atomic)
+    Comb.many(atomic)
       .map(exprs =>
           exprs.slice(1).reduce(
             // a b c d -> (((a b) c) d)
@@ -52,7 +52,7 @@ const makeParser = (options: ParseOptions): P<Expr> => {
 
   const opStackParser: P<Ops> = Comb.pair(
     appParser,
-    L.many(Comb.pair(opParser, appParser))
+    Comb.many(Comb.pair(opParser, appParser))
   ).map(
     ([initial, chunks]) => ({initial, chunks})
   )
