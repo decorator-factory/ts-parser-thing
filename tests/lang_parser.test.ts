@@ -1,6 +1,6 @@
 import { makeParser, unparse } from '../src/lang/parser'
 import { lex } from '../src/lang/lexer';
-import { App, Name, Num } from '../src/lang/ast';
+import { Expr, App, Name, Num, Lam } from '../src/lang/ast';
 import { consume } from '../src/language';
 import { expect } from 'chai';
 
@@ -82,6 +82,43 @@ describe('In this language', () => {
   it('...but not over function application', () => {
     const a = consume(parser, lex('a b `c` d e'));
     const b = consume(parser, lex('(a b) `c` (d e)'));
+
+    expect(a).to.deep.equal(b)
+  })
+
+  it('lambdas exist', () => {
+    expect(consume(parser, lex('{x: x + y}')))
+      .to.have.property('ok')
+      .that.deep.equals(
+        Lam('x', App(App(Name('+'), Name('x')), Name('y')))
+      )
+  })
+
+  it('lambdas can be nested', () => {
+    expect(consume(parser, lex('{x: {y: x + y}}')))
+      .to.have.property('ok')
+      .that.deep.equals(
+        Lam('x', Lam('y', App(App(Name('+'), Name('x')), Name('y'))))
+      )
+  })
+
+  it('lambdas capture values by name from their environment', () => {
+    expect(consume(parser, lex('{x: x + y}')))
+      .to.have.property('ok')
+      .that.has.property('capturedNames')
+      .that.contains('+').and.contains('y')
+  })
+
+  it('however, some lambdas are self-contained', () => {
+    expect(consume(parser, lex('{f: {x: f x}}')))
+      .to.have.property('ok')
+      .that.has.property('capturedNames')
+      .that.is.empty
+  })
+
+  it('multi-argument lambdas are just nested lambdas', () => {
+    const a = consume(parser, lex('{a b c: a + b * c}'));
+    const b = consume(parser, lex('{a: {b: {c: a + b * c}}}'));
 
     expect(a).to.deep.equal(b)
   })

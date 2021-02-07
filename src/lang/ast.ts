@@ -2,6 +2,7 @@ export type Expr =
   | {tag: 'name', name: string}
   | {tag: 'app', fun: Expr, arg: Expr}
   | {tag: 'num', value: number}
+  | {tag: 'lam', argName: string, expr: Expr, capturedNames: string[]}
 
 export type Op = {type: 'symbol' | 'name', value: string}
 
@@ -24,3 +25,26 @@ export const Name =
 export const Num =
   (value: number): Expr =>
     ({tag: 'num', value});
+
+export const Lam =
+  (argName: string, expr: Expr): Expr =>
+    ({tag: 'lam', argName, expr, capturedNames: getCapturedNames(expr, [argName])});
+
+const getCapturedNames = (expr: Expr, exclude: string[]): string[] => {
+  switch (expr.tag) {
+    case 'name':
+      return exclude.includes(expr.name) ? [] : [expr.name];
+
+    case 'app':
+      return (
+        getCapturedNames(expr.fun, exclude)
+        .concat(getCapturedNames(expr.arg, exclude))
+      );
+
+    case 'num':
+      return [];
+
+    case 'lam':
+      return expr.capturedNames.filter(name => !exclude.includes(name));
+  }
+}

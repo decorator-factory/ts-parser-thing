@@ -1,7 +1,7 @@
 import { Lang, TokenParser } from '../language'
 import * as Comb from '../combinators'
 import { Tok } from './lexer'
-import { Op, Ops, Expr, ParseOptions } from './ast'
+import { Op, Ops, Expr, ParseOptions, Lam, App } from './ast'
 import { shuntingYard } from './shunting-yard'
 import { lex } from './lexer'
 
@@ -11,7 +11,7 @@ type P<A> = TokenParser<Tok, A>;
 
 
 export const makeParser = (options: ParseOptions): P<Expr> => {
-  // forward reference
+  // forward referencing, because further parser need this
   const exprParser = Comb.lazy(() => exprParser_);
 
   const nameParser: P<Expr> =
@@ -20,46 +20,61 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
   const numParser: P<Expr> =
     L.reading('num', s => ({tag: 'num', value: parseInt(s)}));
 
-  const paren: P<Expr> = Comb.surroundedBy(
-    L.oneOf('lp'),
-    exprParser,
-    L.oneOf('rp'),
-  )
-
-  const atomic: P<Expr> = numParser.or(nameParser).or(paren);
-
-  const appParser: P<Expr> =
-    Comb.many(atomic)
-      .map(exprs =>
-          exprs.slice(1).reduce(
-            // a b c d -> (((a b) c) d)
-            (fun, arg) => ({tag: 'app', fun, arg}),
-
-            // a -> a
-            exprs[0]
-          ),
-      )
-
-  const opParser: P<Op> =
-    L.reading<Op>(
-      'op',
-      value => ({type: 'symbol', value})
+  const paren: P<Expr> =
+    Comb.surroundedBy(
+      L.oneOf('lp'),
+      exprParser,
+      L.oneOf('rp'),
     )
-    .or(L.reading<Op>(
-      'infixName',
-      name => ({type: 'name', value: name.slice(1, -1)})
-    ));
 
-  const opStackParser: P<Ops> = Comb.pair(
+  // Lambda parser
+  const _makeLambda = (argNames: string[], expr: Expr): Expr =>
+    argNames.reduceRight((acc, argName) => Lam(argName, acc), expr);
+
+  const _lamArgs = Comb.many(L.reading('name', n => n));
+
+  const _lamBody =
+    (args: string[]) =>
+    L.oneOf('col').then(exprParser.map(expr => _makeLambda(args, expr)));
+
+  const lamParser =
+    Comb.surroundedBy(
+      L.oneOf('lbr'),
+      _lamArgs.flatMap(_lamBody),
+      L.oneOf('rbr')
+    )
+
+  // `atomic` is something that doesn't change the parsing result
+  // if you surround it with parentheses
+  const atomic = numParser.or(nameParser).or(paren).or(lamParser);
+
+  const appParser =
+    Comb.many(atomic)
+        .map(([first, ...rest]) => rest.reduce(App, first));
+
+  // Infix operator parser
+  const _symbolInfixOp =
+    L.reading<Op>('op',
+      value => ({type: 'symbol', value})
+    );
+
+  const _nameInfixOp =
+    L.reading<Op>('infixName',
+      name => ({type: 'name', value: name.slice(1, -1)})
+    );
+
+  const _infixOperator = _symbolInfixOp.or(_nameInfixOp);
+
+  const _operatorList: P<Ops> = Comb.pair(
     appParser,
-    Comb.many(Comb.pair(opParser, appParser))
+    Comb.many(Comb.pair(_infixOperator, appParser))
   ).map(
     ([initial, chunks]) => ({initial, chunks})
   )
 
-  const opExpr: P<Expr> =
-    opStackParser.map(ops => shuntingYard(ops, options));
+  const opExpr = _operatorList.map(ops => shuntingYard(ops, options));
 
+  // Entry point
   const exprParser_ = opExpr;
 
   return exprParser_;
@@ -73,6 +88,7 @@ export const unparse = (expr: Expr): string => {
   switch (expr.tag) {
     case 'name': return isIdentifier(expr.name) ? expr.name : `(${expr.name})`;
     case 'num': return `${expr.value}`;
-    case 'app': return `(${unparse(expr.fun)} ${unparse(expr.arg)})`
+    case 'app': return `(${unparse(expr.fun)} ${unparse(expr.arg)})`;
+    case 'lam': return `{${expr.argName}: ${expr.expr}}`;
   }
 };
