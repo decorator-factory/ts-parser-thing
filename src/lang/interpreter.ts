@@ -98,12 +98,12 @@ const compose = (f1: Value, f2: Value): Value =>
 const GLOBAL_ENV: Env = {
   parent: null,
   names: {
-    '+': Native('(+)', a => Native(`(${prettyPrint(a)} +)`, b => Num(asNum(a) + asNum(b)))),
-    '-': Native('(-)', a => Native(`(${prettyPrint(a)} -)`, b => Num(asNum(a) - asNum(b)))),
-    '*': Native('(*)', a => Native(`(${prettyPrint(a)} *)`, b => Num(asNum(a) * asNum(b)))),
-    '^': Native('(^)', a => Native(`(${prettyPrint(a)} ^)`, b => Num(Math.pow(asNum(a), asNum(b))))),
-    '++': Native('(++)', a => Native(`(${prettyPrint(a)} ++)`, b => Str(asStr(a) + asStr(b)))),
-    '.': Native('(.)', a => Native(`(${prettyPrint(a)} . )`, b => compose(a, b))),
+    '+': Native('(+)', a => Native(`(+ ${prettyPrint(a)})`, b => Num(asNum(a) + asNum(b)))),
+    '-': Native('(-)', a => Native(`(- ${prettyPrint(a)})`, b => Num(asNum(a) - asNum(b)))),
+    '*': Native('(*)', a => Native(`(*  ${prettyPrint(a)})`, b => Num(asNum(a) * asNum(b)))),
+    '^': Native('(^)', a => Native(`(^ ${prettyPrint(a)})`, b => Num(Math.pow(asNum(a), asNum(b))))),
+    '++': Native('(++)', a => Native(`(++ ${prettyPrint(a)})`, b => Str(asStr(a) + asStr(b)))),
+    '.': Native('(.)', a => Native(`(. ${prettyPrint(a)})`, b => compose(a, b))),
   }
 };
 
