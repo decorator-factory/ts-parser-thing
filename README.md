@@ -11,5 +11,10 @@ npm i
 
 ## Running tests:
 ```bash
-npm run test
+npm test
+```
+
+## Running the REPL:
+```bash
+npm start
 ```
