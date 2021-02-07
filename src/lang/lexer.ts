@@ -38,10 +38,10 @@ export const lex = (src: string): TokenStream<Tok> => {
     ['col',       /:/                        ],
     ['name',      /(?![0-9])[a-zA-Z_0-9]+/   ],
     ['num',       /[-+]?(?:0|[1-9][0-9]*)/   ],
-    ['op',        /[-+=*/%!|&*^$]+/          ],
+    ['op',        /[-+=*/%!|&^$.><?]+/       ],
     ['infixName', /`(?![0-9])[a-zA-Z_0-9]+`/ ],
-    ['string1',   /'(?:\\.|[^'])*'/           ],
-    ['string2',   /"(?:\\.|[^"])*"/           ],
+    ['string1',   /'(?:\\.|[^'])*'/          ],
+    ['string2',   /"(?:\\.|[^"])*"/          ],
   );
   const tokens: TokenStream<Tok> = [];
   for (const m of src.matchAll(re)) {
