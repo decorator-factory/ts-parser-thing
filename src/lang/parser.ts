@@ -1,7 +1,7 @@
 import { Lang, TokenParser } from '../language'
 import * as Comb from '../combinators'
 import { Tok } from './lexer'
-import { Op, Ops, Expr, ParseOptions, Lam, App } from './ast'
+import { Op, Ops, Expr, ParseOptions, Lam, App, Name } from './ast'
 import { shuntingYard } from './shunting-yard'
 import { lex } from './lexer'
 
@@ -15,7 +15,13 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
   const exprParser = Comb.lazy(() => exprParser_);
 
   const nameParser: P<Expr> =
-    L.reading('name', name => ({tag: 'name', name}));
+    L.reading('name', Name) // foo
+
+    .or(Comb.surroundedBy(  // (+)
+      L.oneOf('lp'),
+      L.reading('op', Name),
+      L.oneOf('rp')
+    ));
 
   const numParser: P<Expr> =
     L.reading('num', s => ({tag: 'num', value: parseInt(s)}));
@@ -89,6 +95,6 @@ export const unparse = (expr: Expr): string => {
     case 'name': return isIdentifier(expr.name) ? expr.name : `(${expr.name})`;
     case 'num': return `${expr.value}`;
     case 'app': return `(${unparse(expr.fun)} ${unparse(expr.arg)})`;
-    case 'lam': return `{${expr.argName}: ${expr.expr}}`;
+    case 'lam': return `{${expr.argName}: ${unparse(expr.expr)}}`;
   }
 };

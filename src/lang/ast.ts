@@ -2,7 +2,10 @@ export type Expr =
   | {tag: 'name', name: string}
   | {tag: 'app', fun: Expr, arg: Expr}
   | {tag: 'num', value: number}
-  | {tag: 'lam', argName: string, expr: Expr, capturedNames: string[]}
+  | LamT
+
+export type LamT =
+  {tag: 'lam', argName: string, expr: Expr, capturedNames: string[]};
 
 export type Op = {type: 'symbol' | 'name', value: string}
 
