@@ -185,7 +185,6 @@ const unparseApp = ({fun, arg} : {fun: Expr, arg: Expr}): string => {
   }
   args.push(arg);
   args.reverse();
-  console.dir({fun, arg, args}, {depth: null})
   return '(' + unparse(fun) + ' ' + args.map(unparse).join(' ') + ')';
 };
 
