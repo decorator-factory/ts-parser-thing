@@ -189,6 +189,18 @@ const unparseApp = ({fun, arg} : {fun: Expr, arg: Expr}): string => {
 };
 
 const unparseLam = (lam: LamT): string => {
+  // right operator section, like `(1 +)`, is encoded as a lambda: {_: 1 + _}
+  // TODO: refactor
+  if ('single' in lam.arg
+      && lam.arg.single === '_'
+      && lam.expr.tag === 'app'
+      && lam.expr.fun.tag === 'app'
+      && lam.expr.fun.fun.tag === 'name'
+      && !isIdentifier(lam.expr.fun.fun.name)
+      && lam.expr.arg.tag === 'name'
+      && lam.expr.arg.name === '_')
+        return '(' + unparse(lam.expr.fun.arg) + ' ' + lam.expr.fun.fun.name + ')';
+
   const args: LamArg[] = [];
   while (lam.expr.tag === 'lam') {
     args.push(lam.arg);
