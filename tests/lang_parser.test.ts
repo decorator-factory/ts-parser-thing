@@ -1,6 +1,6 @@
 import { makeParser, unparse } from '../src/lang/parser'
 import { lex } from '../src/lang/lexer';
-import { Expr, App, Name, Num, Lam, Str, Table } from '../src/lang/ast';
+import { Expr, App, Name, Num, Lam, Str, Table, IfThenElse } from '../src/lang/ast';
 import { consume } from '../src/language';
 import { expect } from 'chai';
 
@@ -164,5 +164,13 @@ describe('In this language', () => {
     expect(consume(parser, lex('[a: 1, b: "Hello",]')))
       .to.have.property('ok')
       .which.deep.equals(Table([['a', Num(1)], ['b', Str("Hello")]]))
+  })
+
+  it('a conditional expression can be constructed', () => {
+    expect(consume(parser, lex('if foo then bar + baz else bonk')))
+      .to.have.property('ok')
+      .which.deep.equals(
+        IfThenElse(Name('foo'), App(App(Name('+'), Name('bar')), Name('baz')), Name('bonk'))
+      )
   })
 })

@@ -1,7 +1,7 @@
 import { Lang, TokenParser } from '../language'
 import * as Comb from '../combinators'
 import { Tok } from './lexer'
-import { Op, Ops, Expr, ParseOptions, Lam, App, Name, Num, Str, Table, Symbol } from './ast'
+import { Op, Ops, Expr, ParseOptions, Lam, App, Name, Num, Str, Table, Symbol, IfThenElse } from './ast'
 import { shuntingYard } from './shunting-yard'
 import { lex } from './lexer'
 
@@ -66,6 +66,16 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
       L.oneOf('rbr')
     )
 
+  // Conditional
+  const ite = Comb.pair(
+    L.oneOf('if').then(exprParser),
+    Comb.pair(
+      L.oneOf('then').then(exprParser),
+      L.oneOf('else').then(exprParser)
+    )
+  ).map(([ifE, [thenE, elseE]]) => IfThenElse(ifE, thenE, elseE));
+
+
   // `atomic` is something that doesn't change the parsing result
   // if you surround it with parentheses
   const atomic: P<Expr> =
@@ -74,6 +84,7 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
     .or(str)
     .or(name)
     .or(paren)
+    .or(ite)
     .or(lambda)
     .or(symbol)
     .or(table);
@@ -139,5 +150,6 @@ export const unparse = (expr: Expr): string => {
     case 'table': return '[' + expr.pairs.map(([k, v]) => `${k}: ${unparse(v)}`).join(', ') + ']'
     case 'app': return `(${unparse(expr.fun)} ${unparse(expr.arg)})`;
     case 'lam': return `{${expr.argName}: ${unparse(expr.expr)}}`;
+    case 'ite': return `if ${expr.if} then ${expr.then} else ${expr.else}`;
   }
 };

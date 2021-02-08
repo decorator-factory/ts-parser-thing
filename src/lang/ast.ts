@@ -5,6 +5,7 @@ export type Expr =
   | {tag: 'str', value: string}
   | {tag: 'symbol', value: string}
   | {tag: 'table', pairs: [string, Expr][] }
+  | {tag: 'ite', if: Expr, then: Expr, else: Expr}
   | LamT
 
 export type LamT =
@@ -48,6 +49,11 @@ export const Lam =
   (argName: string, expr: Expr): Expr =>
     ({tag: 'lam', argName, expr, capturedNames: getCapturedNames(expr, [argName])});
 
+export const IfThenElse =
+(ifE: Expr, thenE: Expr, elseE: Expr): Expr =>
+  ({tag: 'ite', if: ifE, then: thenE, else: elseE});
+
+
 const getCapturedNames = (expr: Expr, exclude: string[]): string[] => {
   switch (expr.tag) {
     case 'name':
@@ -73,5 +79,12 @@ const getCapturedNames = (expr: Expr, exclude: string[]): string[] => {
 
     case 'lam':
       return expr.capturedNames.filter(name => !exclude.includes(name));
+
+    case 'ite':
+      return [
+        ...getCapturedNames(expr.if, exclude),
+        ...getCapturedNames(expr.then, exclude),
+        ...getCapturedNames(expr.else, exclude)
+      ];
   }
 }

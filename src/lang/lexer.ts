@@ -16,6 +16,9 @@ export type Tok =
   | 'infixName'
   | 'string1'
   | 'string2'
+  | 'if'
+  | 'then'
+  | 'else'
 
 const getGroup = (m: RegExpMatchArray) => {
   for (const [k, v] of Object.entries(m.groups || {}))
@@ -32,25 +35,29 @@ const makeRegexp = (...pairs: [string, RegExp][]) =>
     'gm'
   );
 
+const re = makeRegexp(
+  ['if',        /if/                       ],
+  ['then',      /then/                     ],
+  ['else',      /else/                     ],
+  ['ws',        /\s+/                      ],
+  ['lp',        /\(/                       ],
+  ['rp',        /\)/                       ],
+  ['lsq',       /\[/                       ],
+  ['rsq',       /\]/                       ],
+  ['lbr',       /\{/                       ],
+  ['rbr',       /\}/                       ],
+  ['col',       /:/                        ],
+  ['comma',     /,/                        ],
+  ['name',      /(?![0-9])[a-zA-Z_0-9]+/   ],
+  ['tilde',     /~/                        ],
+  ['num',       /[-+]?(?:0|[1-9][0-9]*)/   ],
+  ['op',        /[-+=*/%!|&^$.><?]+/       ],
+  ['infixName', /`(?![0-9])[a-zA-Z_0-9]+`/ ],
+  ['string1',   /'(?:\\.|[^'])*'/          ],
+  ['string2',   /"(?:\\.|[^"])*"/          ],
+);
+
 export const lex = (src: string): TokenStream<Tok> => {
-  const re = makeRegexp(
-    ['ws',        /\s+/                      ],
-    ['lp',        /\(/                       ],
-    ['rp',        /\)/                       ],
-    ['lsq',       /\[/                       ],
-    ['rsq',       /\]/                       ],
-    ['lbr',       /\{/                       ],
-    ['rbr',       /\}/                       ],
-    ['col',       /:/                        ],
-    ['comma',     /,/                        ],
-    ['name',      /(?![0-9])[a-zA-Z_0-9]+/   ],
-    ['tilde',     /~/                        ],
-    ['num',       /[-+]?(?:0|[1-9][0-9]*)/   ],
-    ['op',        /[-+=*/%!|&^$.><?]+/       ],
-    ['infixName', /`(?![0-9])[a-zA-Z_0-9]+`/ ],
-    ['string1',   /'(?:\\.|[^'])*'/          ],
-    ['string2',   /"(?:\\.|[^"])*"/          ],
-  );
   const tokens: TokenStream<Tok> = [];
   for (const m of src.matchAll(re)) {
     const {k, v} = getGroup(m);

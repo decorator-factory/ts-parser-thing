@@ -27,12 +27,14 @@ export type Value =
   | {symbol: string}
   | {fun: LamT, closure: Env}
   | {native: NativeFn, name: string}
-  | {table: Map<string, Value>};
+  | {table: Map<string, Value>}
+  | {bool: boolean}
 
 
 const Str = (str: string): Value => ({str});
 const Symbol = (symbol: string): Value => ({symbol});
 const Num = (num: number): Value => ({num});
+const Bool = (bool: boolean): Value => ({bool});
 const Table = (table: Map<string, Value>): Value => ({table});
 const Fun = (fun: LamT, closure: Env): Value => ({fun, closure});
 const Native = (name: string, native: (v: Value, e: Env) => Value): Value => ({name, native});
@@ -76,6 +78,8 @@ export const prettyPrint = (v: Value): string => {
     return v.name;
   else if ('symbol' in v)
     return '~' + v.symbol;
+  else if ('bool' in v)
+    return `${v.bool}`;
   else
     return '[' + [...v.table.entries()].map(([k, v]) => `${k}: ${prettyPrint(v)}`).join(', ') + ']'
 };
@@ -103,6 +107,10 @@ export const interpret = (expr: Expr, env: Env): Value => {
 
     case 'lam':
       return Fun(expr, env);
+
+    case 'ite':
+      return ifThenElse(expr.if, expr.then, expr.else, env);
+
   }
 };
 
@@ -123,6 +131,8 @@ const GLOBAL_ENV: Env = {
     '^': Native('(^)', a => Native(`(^ ${prettyPrint(a)})`, b => Num(Math.pow(asNum(a), asNum(b))))),
     '++': Native('(++)', a => Native(`(++ ${prettyPrint(a)})`, b => Str(asStr(a) + asStr(b)))),
     '.': Native('(.)', a => Native(`(. ${prettyPrint(a)})`, b => compose(a, b))),
+    'true': Bool(true),
+    'false': Bool(false),
   }
 };
 
@@ -141,6 +151,18 @@ export const PARSER = makeParser({
 
 
 export const run = (expr: Expr): Value => interpret(expr, GLOBAL_ENV);
+
+
+const ifThenElse = (ifExpr: Expr, thenExpr: Expr, elseExpr: Expr, env: Env): Value => {
+  const condition = interpret(ifExpr, env);
+  if (!('bool' in condition))
+    throw new Error(`A condition must be a boolean, got ${prettyPrint(condition)}`);
+
+  return interpret(
+    condition.bool ? thenExpr : elseExpr,
+    env
+  );
+};
 
 
 const applyFunction = (fun: Value, arg: Value, env: Env): Value => {
