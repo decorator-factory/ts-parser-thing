@@ -1,7 +1,7 @@
 import { Lang, TokenParser } from '../language'
 import * as Comb from '../combinators'
 import { Tok } from './lexer'
-import { Op, Ops, Expr, ParseOptions, Lam, App, Name, Num, Str, Table, Symbol, IfThenElse, ArgSingle, LamArg, ArgTable } from './ast'
+import { Op, Ops, Expr, ParseOptions, Lam, App, Name, Num, Str, Table, Symbol, IfThenElse, ArgSingle, LamArg, ArgTable, LamT } from './ast'
 import { shuntingYard } from './shunting-yard'
 import { lex } from './lexer'
 
@@ -176,6 +176,29 @@ const unparseArg = (arg: LamArg): string =>
       : target + ': ' + unparseArg(source)
   ).join(', ') + ']';
 
+const unparseApp = ({fun, arg} : {fun: Expr, arg: Expr}): string => {
+  const args: Expr[] = [];
+  while (fun.tag === 'app'){
+    args.push(arg);
+    arg = fun.arg;
+    fun = fun.fun;
+  }
+  args.push(arg);
+  args.reverse();
+  console.dir({fun, arg, args}, {depth: null})
+  return '(' + unparse(fun) + ' ' + args.map(unparse).join(' ') + ')';
+};
+
+const unparseLam = (lam: LamT): string => {
+  const args: LamArg[] = [];
+  while (lam.expr.tag === 'lam') {
+    args.push(lam.arg);
+    lam = lam.expr;
+  }
+  args.push(lam.arg);
+  return '{' + args.map(unparseArg).join(' ') + ': ' + unparse(lam.expr) + '}';
+}
+
 export const unparse = (expr: Expr): string => {
   switch (expr.tag) {
     case 'name': return isIdentifier(expr.name) ? expr.name : `(${expr.name})`;
@@ -183,8 +206,8 @@ export const unparse = (expr: Expr): string => {
     case 'str': return JSON.stringify(expr.value);
     case 'symbol': return '~' + expr.value;
     case 'table': return '[' + expr.pairs.map(([k, v]) => `${k}: ${unparse(v)}`).join(', ') + ']'
-    case 'app': return `(${unparse(expr.fun)} ${unparse(expr.arg)})`;
-    case 'lam': return `{${unparseArg(expr.arg)}: ${unparse(expr.expr)}}`;
+    case 'app': return unparseApp(expr);
+    case 'lam': return unparseLam(expr);
     case 'ite': return `if ${expr.if} then ${expr.then} else ${expr.else}`;
   }
 };
