@@ -1,7 +1,7 @@
 import { Lang, TokenParser } from '../language'
 import * as Comb from '../combinators'
 import { Tok } from './lexer'
-import { Op, Ops, Expr, ParseOptions, Lam, App, Name, Num, Str, Table, Symbol, IfThenElse } from './ast'
+import { Op, Ops, Expr, ParseOptions, Lam, App, Name, Num, Str, Table, Symbol, IfThenElse, ArgSingle, LamArg, ArgTable } from './ast'
 import { shuntingYard } from './shunting-yard'
 import { lex } from './lexer'
 
@@ -13,6 +13,8 @@ type P<A> = TokenParser<Tok, A>;
 const inParen = <A>(p: P<A>): P<A> =>
   Comb.surroundedBy(L.oneOf('lp'), p, L.oneOf('rp'))
 
+const trailingComma = (lookAheadFor: Tok) =>
+ L.oneOf('comma').or(L.oneOf(lookAheadFor).lookAhead());
 
 export const makeParser = (options: ParseOptions): P<Expr> => {
   // forward referencing, because further parser need this
@@ -40,8 +42,8 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
       exprParser
     );
 
-  const _tableInnards: P<[string, Expr][]> =
-    Comb.many(_tableRecord.neht(L.oneOf('comma').or(L.oneOf('rsq').lookAhead())))
+  const _tableInnards =
+    Comb.many(_tableRecord.neht(trailingComma('rsq')))
 
   const table = Comb.surroundedBy(
     L.oneOf('lsq'),
@@ -49,14 +51,37 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
     L.oneOf('rsq'),
   ).map(Table);
 
-  // Lambda
-  const _makeLambda = (argNames: string[], expr: Expr): Expr =>
-    argNames.reduceRight((acc, argName) => Lam(argName, acc), expr);
+  // Argument pattern for lambda
+  const _namePat = L.reading('name', ArgSingle);
 
-  const _lamArgs = Comb.many(L.reading('name', n => n));
+  const _tableValue = (target: string) =>
+    L.oneOf('col').then(_lamArg).map(
+      (p): [string, LamArg] => [target, p]
+    )
+    .or(Comb.always([target, ArgSingle(target)]));
+
+  const _tablePatHelper: P<[string, LamArg][]> = Comb.surroundedBy(
+    L.oneOf('lsq'),
+    Comb.many(
+      L.reading('name', n => n)
+      .flatMap(_tableValue)
+      .neht(trailingComma('rsq'))
+    ),
+    L.oneOf('rsq'),
+  )
+
+  const _tablePat = _tablePatHelper.map(ArgTable);
+
+  const _lamArg = _namePat.or(_tablePat);
+
+  // Lambda
+  const _makeLambda = (argNames: LamArg[], expr: Expr): Expr =>
+    argNames.reduceRight((acc, arg) => Lam(arg, acc), expr);
+
+  const _lamArgs = Comb.many(_lamArg);
 
   const _lamBody =
-    (args: string[]) =>
+    (args: LamArg[]) =>
     L.oneOf('col').then(exprParser.map(expr => _makeLambda(args, expr)));
 
   const lambda =
@@ -100,7 +125,7 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
     inParen(Comb.pair(
       atomic,
       L.reading('op', Name)
-    )).map(([left, op]) => Lam('_', App(App(op, left), Name('_'))));
+    )).map(([left, op]) => Lam(ArgSingle('_'), App(App(op, left), Name('_'))));
 
   const opSection = _leftSection.or(_rightSection);
 
@@ -141,6 +166,16 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
 const isIdentifier = (s: string) => /^(?![0-9])[a-zA-Z_0-9]+$/.test(s);
 
 
+const unparseArg = (arg: LamArg): string =>
+  'single' in arg
+  ? arg.single
+  : '[' + arg.table.map(
+    ([target, source]) =>
+      'single' in source && source.single === target
+      ? target
+      : target + ': ' + unparseArg(source)
+  ).join(', ') + ']';
+
 export const unparse = (expr: Expr): string => {
   switch (expr.tag) {
     case 'name': return isIdentifier(expr.name) ? expr.name : `(${expr.name})`;
@@ -149,7 +184,7 @@ export const unparse = (expr: Expr): string => {
     case 'symbol': return '~' + expr.value;
     case 'table': return '[' + expr.pairs.map(([k, v]) => `${k}: ${unparse(v)}`).join(', ') + ']'
     case 'app': return `(${unparse(expr.fun)} ${unparse(expr.arg)})`;
-    case 'lam': return `{${expr.argName}: ${unparse(expr.expr)}}`;
+    case 'lam': return `{${unparseArg(expr.arg)}: ${unparse(expr.expr)}}`;
     case 'ite': return `if ${expr.if} then ${expr.then} else ${expr.else}`;
   }
 };

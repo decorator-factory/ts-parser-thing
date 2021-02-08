@@ -1,6 +1,6 @@
 import { makeParser, unparse } from '../src/lang/parser'
 import { lex } from '../src/lang/lexer';
-import { Prio, App, Name, Num, Lam, Str, Table, IfThenElse } from '../src/lang/ast';
+import { Prio, App, Name, Num, Lam, Str, Table, IfThenElse, ArgSingle, ArgTable } from '../src/lang/ast';
 import { consume } from '../src/language';
 import { expect } from 'chai';
 
@@ -90,7 +90,10 @@ describe('In this language', () => {
     expect(consume(parser, lex('{x: x + y}')))
       .to.have.property('ok')
       .that.deep.equals(
-        Lam('x', App(App(Name('+'), Name('x')), Name('y')))
+        Lam(
+          ArgSingle('x'),
+          App(App(Name('+'), Name('x')), Name('y'))
+        )
       )
   })
 
@@ -98,7 +101,31 @@ describe('In this language', () => {
     expect(consume(parser, lex('{x: {y: x + y}}')))
       .to.have.property('ok')
       .that.deep.equals(
-        Lam('x', Lam('y', App(App(Name('+'), Name('x')), Name('y'))))
+        Lam(
+          ArgSingle('x'),
+          Lam(
+            ArgSingle('y'),
+            App(App(Name('+'), Name('x')), Name('y'))
+          )
+        )
+      )
+  })
+
+  it('a lambda can have a nested binding', () => {
+    expect(consume(parser, lex('{[x, y: z, a: [b, c]]: 42}')))
+      .to.have.property('ok')
+      .that.deep.equals(
+        Lam(
+          ArgTable([
+            ['x', ArgSingle('x')],
+            ['y', ArgSingle('z')],
+            ['a', ArgTable([
+              ['b', ArgSingle('b')],
+              ['c', ArgSingle('c')],
+            ])],
+          ]),
+          Num(42)
+        )
       )
   })
 

@@ -1,11 +1,12 @@
-import { Expr, LamT, Prio } from './ast';
+import { Expr, LamArg, LamT, Prio } from './ast';
 import { makeParser, unparse } from './parser';
 import { Map } from 'immutable';
 
 
 const lookupName = (name: string, env: Env): Value => {
-  if (name in env.names)
-    return env.names[name];
+  const rv = env.names.get(name);
+  if (rv !== undefined)
+    return rv;
   if (env.parent === null)
     throw new Error(`Name ${name} not found`);
   return lookupName(name, env.parent);
@@ -14,7 +15,7 @@ const lookupName = (name: string, env: Env): Value => {
 
 export type Env = {
   parent: Env | null;
-  names: Record<string, Value>;
+  names: Map<string, Value>;
 }
 
 
@@ -63,7 +64,7 @@ const envRepr = (env: Env, keys: string[]): string => {
   const lines: string[] = [];
   for (const key of keys)
     lines.push(`${key}: ${prettyPrint(lookupName(key, env))}`);
-  return '{' + lines.join(', ') + '}';
+  return '[' + lines.join(', ') + ']';
 }
 
 
@@ -124,7 +125,7 @@ const compose = (f1: Value, f2: Value): Value =>
 
 const GLOBAL_ENV: Env = {
   parent: null,
-  names: {
+  names: Map({
     '+': Native('(+)', a => Native(`(+ ${prettyPrint(a)})`, b => Num(asNum(a) + asNum(b)))),
     '-': Native('(-)', a => Native(`(- ${prettyPrint(a)})`, b => Num(asNum(a) - asNum(b)))),
     '*': Native('(*)', a => Native(`(*  ${prettyPrint(a)})`, b => Num(asNum(a) * asNum(b)))),
@@ -133,7 +134,7 @@ const GLOBAL_ENV: Env = {
     '.': Native('(.)', a => Native(`(. ${prettyPrint(a)})`, b => compose(a, b))),
     'true': Bool(true),
     'false': Bool(false),
-  }
+  })
 };
 
 
@@ -144,6 +145,7 @@ export const PARSER = makeParser({
     '*': Prio(8, 'left'),
     '^': Prio(10, 'right'),
     '++': Prio(10, 'left'),
+    '.': Prio(1, 'right'),
   },
   namePriority: Prio(20, 'left'),
   defaultPriority: Prio(5, 'left'),
@@ -165,6 +167,22 @@ const ifThenElse = (ifExpr: Expr, thenExpr: Expr, elseExpr: Expr, env: Env): Val
 };
 
 
+const bindNames = (declaration: LamArg, value: Value, env: Env): Map<string, Value> => {
+  if ('single' in declaration)
+    return Map({[declaration.single]: value});
+
+  return declaration.table.reduce(
+    (acc, [src, target]) =>
+      acc.concat(bindNames(
+        target,
+        applyFunction(value, Symbol(src), env),
+        env
+      )),
+    Map<string, Value>()
+  );
+}
+
+
 const applyFunction = (fun: Value, arg: Value, env: Env): Value => {
   if ('native' in fun)
     return fun.native(arg, env);
@@ -174,7 +192,7 @@ const applyFunction = (fun: Value, arg: Value, env: Env): Value => {
       fun.fun.expr,
       {
         parent: fun.closure,
-        names: { [fun.fun.argName]: arg }
+        names: bindNames(fun.fun.arg, arg, env)
       }
     );
 

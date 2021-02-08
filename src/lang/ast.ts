@@ -8,8 +8,17 @@ export type Expr =
   | {tag: 'ite', if: Expr, then: Expr, else: Expr}
   | LamT
 
+
+export type LamArg =
+  | {single: string}
+  | {table: [string, LamArg][]}
+
+export const ArgSingle = (single: string): LamArg => ({single});
+export const ArgTable = (table: [string, LamArg][]): LamArg => ({table});
+
+
 export type LamT =
-  {tag: 'lam', argName: string, expr: Expr, capturedNames: string[]};
+  {tag: 'lam', arg: LamArg, expr: Expr, capturedNames: string[]};
 
 export type Op = {type: 'infix' | 'name', value: string}
 
@@ -52,9 +61,17 @@ export const Table =
   (pairs: [string, Expr][]): Expr =>
     ({tag: 'table', pairs});
 
+const namesInArg = (arg: LamArg): string[] =>
+  'single' in arg? [arg.single] : arg.table.flatMap(([_src, target]) => namesInArg(target));
+
 export const Lam =
-  (argName: string, expr: Expr): Expr =>
-    ({tag: 'lam', argName, expr, capturedNames: getCapturedNames(expr, [argName])});
+  (arg: LamArg, expr: Expr): Expr =>
+    ({
+      tag: 'lam',
+      arg,
+      expr,
+      capturedNames: getCapturedNames(expr, namesInArg(arg))
+    });
 
 export const IfThenElse =
 (ifE: Expr, thenE: Expr, elseE: Expr): Expr =>
