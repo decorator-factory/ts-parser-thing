@@ -1,4 +1,4 @@
-import { Op, Ops, Expr, App, Name, Num, ParseOptions } from './ast';
+import { Op, Ops, Expr, App, Name, Num, ParseOptions, Priority } from './ast';
 
 
 const never = (msg: string = 'This should never happen'): any => { throw new Error(msg) };
@@ -16,10 +16,12 @@ const opsToStream: (ops: Ops) => Iterable<{op: Op}|{app: Expr}> =
   (
     operator: Op,
     options: ParseOptions
-  ): number =>
+  ): Priority =>
     operator.type === 'name'
     ? options.namePriority
     : options.priorities[operator.value] || options.defaultPriority;
+
+
 
 
 export const shuntingYard = (
@@ -31,6 +33,7 @@ export const shuntingYard = (
   const opStack: Op[] = [];
 
   const prio = (op: Op) => getPriority(op, options);
+
   const reduce = () => {
     const op = opStack.pop() || never();
     const right: Expr = exprStack.pop() || never();
@@ -46,12 +49,19 @@ export const shuntingYard = (
       if (opStack.length === 0) {
         opStack.push(item.op)
       } else {
-        while (opStack.length > 0 && prio(item.op) < prio(opStack.slice(-1)[0]))
+        while (
+          opStack.length > 0
+          &&
+            ((prio(item.op).strength < prio(opStack.slice(-1)[0]).strength)
+            || prio(item.op).direction === 'left')
+        )
           reduce();
         opStack.push(item.op);
       }
+
   while (opStack.length > 0)
     reduce();
+
   if (exprStack.length !== 1)
     never();
   return exprStack[0];

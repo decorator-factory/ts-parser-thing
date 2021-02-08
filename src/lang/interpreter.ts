@@ -1,4 +1,4 @@
-import { Expr, LamT } from './ast';
+import { Expr, LamT, Prio } from './ast';
 import { makeParser, unparse } from './parser';
 import { Map } from 'immutable';
 
@@ -139,14 +139,14 @@ const GLOBAL_ENV: Env = {
 
 export const PARSER = makeParser({
   priorities: {
-    '+': 6,
-    '-': 6,
-    '*': 8,
-    '^': 10,
-    '++': 10,
+    '+': Prio(6, 'left'),
+    '-': Prio(6, 'left'),
+    '*': Prio(8, 'left'),
+    '^': Prio(10, 'right'),
+    '++': Prio(10, 'left'),
   },
-  namePriority: 20,
-  defaultPriority: 5
+  namePriority: Prio(20, 'left'),
+  defaultPriority: Prio(5, 'left'),
 });
 
 

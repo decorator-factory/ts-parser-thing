@@ -1,5 +1,5 @@
 import * as readline from 'readline';
-import { run, prettyPrint } from './lang/interpreter';
+import { run, prettyPrint, PARSER } from './lang/interpreter';
 import { lex } from './lang/lexer';
 import { makeParser } from './lang/parser';
 import { consume } from './language';
@@ -16,16 +16,7 @@ const prompt = () => {
 
 
 const runCode = (input: string): void => {
-  const parser = makeParser({
-    priorities: {
-      '+': 3,
-      '-': 3,
-      '*': 5,
-      '^': 7,
-    },
-    namePriority: 9,
-    defaultPriority: 8,
-  });
+  const parser = PARSER;
   let tokens;
   try {
     tokens = lex(input)

@@ -1,18 +1,18 @@
 import { makeParser, unparse } from '../src/lang/parser'
 import { lex } from '../src/lang/lexer';
-import { Expr, App, Name, Num, Lam, Str, Table, IfThenElse } from '../src/lang/ast';
+import { Prio, App, Name, Num, Lam, Str, Table, IfThenElse } from '../src/lang/ast';
 import { consume } from '../src/language';
 import { expect } from 'chai';
 
 
 const parser = makeParser({
   priorities: {
-    '+': 3,
-    '*': 5,
-    '^': 7,
+    '+': Prio(3, 'right'),
+    '-': Prio(3, 'left'),
+    '*': Prio(3, 'right'),
   },
-  namePriority: 9,
-  defaultPriority: 8,
+  namePriority: Prio(9, 'right'),
+  defaultPriority: Prio(8, 'right'),
 });
 
 

@@ -15,10 +15,17 @@ export type Op = {type: 'infix' | 'name', value: string}
 
 export type Ops = {initial: Expr, chunks: [Op, Expr][]}
 
+export type Priority = {strength: number, direction: 'left' | 'right'};
+export const Prio = (
+  strength: number,
+  direction: 'left' | 'right'
+): Priority =>
+  ({strength, direction});
+
 export type ParseOptions = {
-  priorities: Record<string, number>,
-  namePriority: number,
-  defaultPriority: number
+  priorities: Record<string, Priority>,
+  namePriority: Priority,  // priority for (a `f` b `g` c)
+  defaultPriority: Priority
 }
 
 export const App =
@@ -54,15 +61,15 @@ export const IfThenElse =
   ({tag: 'ite', if: ifE, then: thenE, else: elseE});
 
 
-const getCapturedNames = (expr: Expr, exclude: string[]): string[] => {
+const _getCapturedNames = (expr: Expr, exclude: string[]): string[] => {
   switch (expr.tag) {
     case 'name':
       return exclude.includes(expr.name) ? [] : [expr.name];
 
     case 'app':
       return (
-        getCapturedNames(expr.fun, exclude)
-        .concat(getCapturedNames(expr.arg, exclude))
+        _getCapturedNames(expr.fun, exclude)
+        .concat(_getCapturedNames(expr.arg, exclude))
       );
 
     case 'num':
@@ -75,16 +82,25 @@ const getCapturedNames = (expr: Expr, exclude: string[]): string[] => {
       return [];
 
     case 'table':
-      return expr.pairs.flatMap(([_, subexpr]) => getCapturedNames(subexpr, exclude));
+      return expr.pairs.flatMap(([_, subexpr]) => _getCapturedNames(subexpr, exclude));
 
     case 'lam':
       return expr.capturedNames.filter(name => !exclude.includes(name));
 
     case 'ite':
       return [
-        ...getCapturedNames(expr.if, exclude),
-        ...getCapturedNames(expr.then, exclude),
-        ...getCapturedNames(expr.else, exclude)
+        ..._getCapturedNames(expr.if, exclude),
+        ..._getCapturedNames(expr.then, exclude),
+        ..._getCapturedNames(expr.else, exclude)
       ];
   }
 }
+
+
+const unique =
+  <T>(arr: ReadonlyArray<T>): Array<T> =>
+  [...new Set(arr)];
+
+const getCapturedNames =
+  (expr: Expr, exclude: string[]): string[] =>
+  unique(_getCapturedNames(expr, exclude));
