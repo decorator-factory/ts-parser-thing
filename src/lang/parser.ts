@@ -115,19 +115,24 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
     .or(table);
 
   // Operator section
-  const _leftSection =
-    inParen(Comb.pair(
-      L.reading('op', Name),
-      Comb.many(atomic)
-    )).map(([first, rest]) => rest.reduce(App, first));
+  const _op =
+    L.reading('op', Name)
+    .or(L.reading('infixName', name => Name(name.slice(1, -1))));
+
+  const _leftSection = // (+ 1)
+    inParen(Comb.pair(_op, atomic))
+    .map(([op, right]) => Lam(ArgSingle('_'), App(App(op, Name('_')), right)));
+  // (+ 1) <=> {_: _ + 1}
 
   const _rightSection =
-    inParen(Comb.pair(
-      atomic,
-      L.reading('op', Name)
-    )).map(([left, op]) => Lam(ArgSingle('_'), App(App(op, left), Name('_'))));
+    inParen(Comb.pair(atomic, _op))
+    .map(([left, op]) => App(op, left));
+  // (1 +) <=> ((+) 1)
 
-  const opSection = _leftSection.or(_rightSection);
+  const _bareOp = inParen(_op);
+  // (+)
+
+  const opSection = _leftSection.or(_rightSection).or(_bareOp);
 
   const application =
     Comb.manyAtLeast(atomic, 1, 'Malformed or ambiguous function application')
@@ -189,7 +194,7 @@ const unparseApp = ({fun, arg} : {fun: Expr, arg: Expr}): string => {
 };
 
 const unparseLam = (lam: LamT): string => {
-  // right operator section, like `(1 +)`, is encoded as a lambda: {_: 1 + _}
+  // right operator section, like `(- 5)`, is encoded as a lambda: {_: _ - 5}
   // TODO: refactor
   if ('single' in lam.arg
       && lam.arg.single === '_'
@@ -197,9 +202,9 @@ const unparseLam = (lam: LamT): string => {
       && lam.expr.fun.tag === 'app'
       && lam.expr.fun.fun.tag === 'name'
       && !isIdentifier(lam.expr.fun.fun.name)
-      && lam.expr.arg.tag === 'name'
-      && lam.expr.arg.name === '_')
-        return '(' + unparse(lam.expr.fun.arg) + ' ' + lam.expr.fun.fun.name + ')';
+      && lam.expr.fun.arg.tag === 'name'
+      && lam.expr.fun.arg.name === '_')
+        return '(' + lam.expr.fun.fun.name + ' ' + unparse(lam.expr.arg) + ')';
 
   const args: LamArg[] = [];
   while (lam.expr.tag === 'lam') {
