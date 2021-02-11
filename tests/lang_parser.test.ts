@@ -156,15 +156,15 @@ describe('In this language', () => {
       .which.deep.equals(Name('+'))
   })
 
-  it('an operator can be partially applied from the left, like a function', () => {
-    expect(consume(parser, lex('(+ 1)')))
+  it('an operator can be partially applied from the right', () => {
+    expect(consume(parser, lex('(1 +)')))
       .to.have.property('ok')
       .which.deep.equals(App(Name('+'), Num(1)))
   })
 
-  it('an operator can be partially applied from the right, like a function', () => {
-    const a = consume(parser, lex('(2 ^)'));
-    const b = consume(parser, lex('{_: 2 ^ _}'));
+  it('an operator can be partially applied from the left', () => {
+    const a = consume(parser, lex('(^ 2)'));
+    const b = consume(parser, lex('{_: _ ^ 2}'));
 
     expect(a).to.deep.equal(b)
   })
