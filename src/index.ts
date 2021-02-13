@@ -11,8 +11,9 @@ const rl = readline.createInterface({
 
 
 const prompt = () => {
-  process.stdout.write('> ', 'utf-8');
+  process.stdout.write('λ> ', 'utf-8');
 };
+rl.setPrompt('λ> ');
 
 
 const runCode = (input: string): void => {
