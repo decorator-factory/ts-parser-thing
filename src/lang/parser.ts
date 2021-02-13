@@ -20,6 +20,8 @@ const trailingComma = (lookAheadFor: Tok) =>
 
 type SetOptions = (options: ParseOptions) => void;
 export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
+  const _nameOrOp = L.reading('name', n => n).or(L.reading('op', n => n));
+
   // forward referencing, because further parser need this
   const exprParser: P<Expr> = Comb.lazy(() => exprParser_);
 
@@ -34,10 +36,7 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
 
   // Symbol
   const symbol =
-    L.oneOf('dot').then(
-      L.reading('name', Symbol)
-      .or(L.reading('op', Symbol))
-    );
+    L.oneOf('dot').then(_nameOrOp.map(Symbol));
 
   // Parenthesized expression
   const paren = inParen(exprParser);
@@ -45,7 +44,7 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
   // Table
   const _tableRecord =
     Comb.pair(
-      L.reading('name', n => n).neht(L.oneOf('col')),
+      _nameOrOp.neht(L.oneOf('col')),
       exprParser
     );
 
@@ -59,7 +58,7 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
   ).map(Table);
 
   // Argument pattern for lambda
-  const _namePat = L.reading('name', ArgSingle);
+  const _namePat = _nameOrOp.map(ArgSingle);
 
   const _tableValue = (target: string) =>
     L.oneOf('col').then(_lamArg).map(
@@ -70,7 +69,7 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
   const _tablePatHelper: P<[string, LamArg][]> = Comb.surroundedBy(
     L.oneOf('lsq'),
     Comb.many(
-      L.reading('name', n => n)
+      _nameOrOp
       .flatMap(_tableValue)
       .neht(trailingComma('rsq'))
     ),
