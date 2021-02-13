@@ -202,7 +202,7 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
       )
     ));
 
-  const ioFunctions = {
+  const ioFunctions = Table(Map({
     'log': Native(
       'IO.log',
       s => {
@@ -312,7 +312,7 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
         }
       )
     )
-  };
+  }));
 
   return {
     parent,
@@ -331,7 +331,7 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
       'fallback': _fallback,
       '|?': _fallback,
 
-      'IO': Table(Map(ioFunctions)),
+      'IO': Native('IO', (key, env) => applyFunction(ioFunctions, key, env)),
 
       'given': Native(
         'given',
