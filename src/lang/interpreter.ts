@@ -78,7 +78,7 @@ export const prettyPrint = (v: Value): string => {
   else if ('native' in v)
     return v.name;
   else if ('symbol' in v)
-    return '~' + v.symbol;
+    return '.' + v.symbol;
   else if ('bool' in v)
     return `${v.bool}`;
   else
@@ -131,7 +131,9 @@ const GLOBAL_ENV: Env = {
     '*': Native('(*)', a => Native(`(${prettyPrint(a)} *)`, b => Num(asNum(a) * asNum(b)))),
     '^': Native('(^)', a => Native(`(${prettyPrint(a)} ^)`, b => Num(Math.pow(asNum(a), asNum(b))))),
     '++': Native('(++)', a => Native(`(${prettyPrint(a)} ++)`, b => Str(asStr(a) + asStr(b)))),
-    '.': Native('(.)', a => Native(`(${prettyPrint(a)} .)`, b => compose(a, b))),
+    '<<': Native('(<<)', a => Native(`(${prettyPrint(a)} <<)`, b => compose(a, b))),
+    '>>': Native('(>>)', a => Native(`(${prettyPrint(a)} >>)`, b => compose(b, a))),
+    '|>': Native('(|>)', a => Native(`(${prettyPrint(a)} |>)`, (f, env) => applyFunction(f, a, env))),
     'true': Bool(true),
     'false': Bool(false),
   })

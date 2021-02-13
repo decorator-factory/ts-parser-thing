@@ -2,7 +2,6 @@ import {TokenStream} from '../language';
 
 export type Tok =
   | 'name'
-  | 'tilde'
   | 'num'
   | 'lp'
   | 'rp'
@@ -19,6 +18,8 @@ export type Tok =
   | 'if'
   | 'then'
   | 'else'
+  | 'dot'
+  | 'ws'
 
 const getGroup = (m: RegExpMatchArray) => {
   for (const [k, v] of Object.entries(m.groups || {}))
@@ -27,7 +28,7 @@ const getGroup = (m: RegExpMatchArray) => {
   throw new Error('Empty match');
 };
 
-const makeRegexp = (...pairs: [string, RegExp][]) =>
+const makeRegexp = (...pairs: [Tok, RegExp][]) =>
   new RegExp(
     pairs
     .map(([name, inner]) => `(?<${name}>${inner.source})`)
@@ -36,9 +37,9 @@ const makeRegexp = (...pairs: [string, RegExp][]) =>
   );
 
 const re = makeRegexp(
-  ['if',        /if/                       ],
-  ['then',      /then/                     ],
-  ['else',      /else/                     ],
+  ['if',        /if\b/                     ],
+  ['then',      /then\b/                   ],
+  ['else',      /else\b/                   ],
   ['ws',        /\s+/                      ],
   ['lp',        /\(/                       ],
   ['rp',        /\)/                       ],
@@ -49,9 +50,9 @@ const re = makeRegexp(
   ['col',       /:/                        ],
   ['comma',     /,/                        ],
   ['name',      /(?![0-9])[a-zA-Z_0-9]+/   ],
-  ['tilde',     /~/                        ],
+  ['dot',       /\./                       ],
   ['num',       /[-+]?(?:0|[1-9][0-9]*)/   ],
-  ['op',        /[-+=*/%!|&^$.><?]+/       ],
+  ['op',        /[-+=*/%!|&^$><?]+/        ],
   ['infixName', /`(?![0-9])[a-zA-Z_0-9]+`/ ],
   ['string1',   /'(?:\\.|[^'])*'/          ],
   ['string2',   /"(?:\\.|[^"])*"/          ],

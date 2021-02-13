@@ -30,7 +30,7 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
   const str = L.reading('string1', eval).or(L.reading('string2', eval)).map(Str);
 
   // Symbol
-  const symbol = L.oneOf('tilde').then(L.reading('name', Symbol));
+  const symbol = L.oneOf('dot').then(L.reading('name', Symbol));
 
   // Parenthesized expression
   const paren = inParen(exprParser);
@@ -220,7 +220,7 @@ export const unparse = (expr: Expr): string => {
     case 'name': return isIdentifier(expr.name) ? expr.name : `(${expr.name})`;
     case 'num': return `${expr.value}`;
     case 'str': return JSON.stringify(expr.value);
-    case 'symbol': return '~' + expr.value;
+    case 'symbol': return '.' + expr.value;
     case 'table': return '[' + expr.pairs.map(([k, v]) => `${k}: ${unparse(v)}`).join(', ') + ']'
     case 'app': return unparseApp(expr);
     case 'lam': return unparseLam(expr);
