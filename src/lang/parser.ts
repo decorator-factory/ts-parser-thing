@@ -16,7 +16,9 @@ const inParen = <A>(p: P<A>): P<A> =>
 const trailingComma = (lookAheadFor: Tok) =>
  L.oneOf('comma').or(L.oneOf(lookAheadFor).lookAhead());
 
-export const makeParser = (options: ParseOptions): P<Expr> => {
+
+type SetOptions = (options: ParseOptions) => void;
+export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
   // forward referencing, because further parser need this
   const exprParser: P<Expr> = Comb.lazy(() => exprParser_);
 
@@ -164,7 +166,7 @@ export const makeParser = (options: ParseOptions): P<Expr> => {
   // Entry point
   const exprParser_ = opExpr;
 
-  return exprParser_;
+  return [exprParser_, newOpts => {options = newOpts}];
 }
 
 

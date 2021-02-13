@@ -1,140 +1,130 @@
-import { Expr, LamArg, LamT, Prio } from './ast';
-import { makeParser, unparse } from './parser';
-import { Map } from 'immutable';
+import { Expr, ParseOptions, Prio, Priority } from "./ast";
+import { makeParser } from "./parser";
+import {
+  applyFunction,
+  asFun,
+  asNum,
+  asStr,
+  asStrOrSymb,
+  asTable,
+  Bool,
+  Env,
+  FunT,
+  interpret,
+  Native,
+  Num,
+  prettyPrint,
+  Str,
+  Table,
+  Value,
+} from "./runtime";
+import { Map } from "immutable";
+import { Parser } from "../parser";
+import { lex, Tok } from "./lexer";
+import { TokenParser, TokenStream } from "../language";
+import { Either, Err, Ok } from "../either";
 
 
-const lookupName = (name: string, env: Env): Value => {
-  const rv = env.names.get(name);
-  if (rv !== undefined)
-    return rv;
-  if (env.parent === null)
-    throw new Error(`Name ${name} not found`);
-  return lookupName(name, env.parent);
+const DEFAULT_PARSER_OPTIONS = {
+  priorities: {
+    '+': Prio(6, 'left'),
+    '-': Prio(6, 'left'),
+    '*': Prio(8, 'left'),
+    '^': Prio(10, 'right'),
+    '++': Prio(10, 'left'),
+    '<<': Prio(3, 'right'),
+    '>>': Prio(3, 'left'),
+    '|>': Prio(2, 'left'),
+    '|?': Prio(3, 'right'),
+  },
+  namePriority: Prio(20, 'right'),
+  defaultPriority: Prio(5, 'left'),
 };
 
 
-export type Env = {
-  parent: Env | null;
-  names: Map<string, Value>;
-}
+class StatefulParser {
+  private parser: TokenParser<Tok, Expr>;
+  private setOptions: (o: ParseOptions) => void;
+  private options: ParseOptions;
 
-
-export type NativeFn = (v: Value, e: Env) => Value;
-
-type FunT = {fun: LamT, closure: Env};
-type LazyName = string | (() => string);
-export type Value =
-  | {str: string}
-  | {num: number}
-  | {symbol: string}
-  | FunT
-  | {native: NativeFn, name: LazyName}
-  | {table: Map<string, Value>}
-  | {bool: boolean}
-
-
-const Str = (str: string): Value => ({str});
-const Symbol = (symbol: string): Value => ({symbol});
-const Num = (num: number): Value => ({num});
-const Bool = (bool: boolean): Value => ({bool});
-const Table = (table: Map<string, Value>): Value => ({table});
-const Fun = (fun: LamT, closure: Env): Value => ({fun, closure});
-const Native = (name: LazyName, native: (v: Value, e: Env) => Value): Value => ({name, native});
-
-
-const asNum = (v: Value): number => {
-  if (!('num' in v))
-    throw new Error(`Expected number, got ${prettyPrint(v)}`);
-  return v.num;
-};
-
-const asStr = (v: Value): string => {
-  if (!('str' in v))
-    throw new Error(`Expected string, got ${prettyPrint(v)}`);
-  return v.str;
-};
-
-const asSymb = (v: Value): string => {
-  if (!('symbol' in v))
-    throw new Error(`Expected symbol, got ${prettyPrint(v)}`);
-  return v.symbol;
-};
-
-const asStrOrSymb = (v: Value): string => {
-  if ('str' in v)
-    return v.str;
-  if ('symbol' in v)
-    return v.symbol;
-  throw new Error(`Expected string or symbol, got ${prettyPrint(v)}`);
-};
-
-const asTable = (v: Value): Map<string, Value> => {
-  if (!('table' in v))
-    throw new Error(`Expected table, got ${prettyPrint(v)}`);
-  return v.table;
-};
-
-const asFun = (v: Value): FunT => {
-  if (!('fun' in v))
-    throw new Error(`Expected function, got ${prettyPrint(v)}`);
-  return v;
-};
-
-
-const envRepr = (env: Env, keys: string[]): string => {
-  const lines: string[] = [];
-  for (const key of keys)
-    lines.push(`${key}: ${prettyPrint(lookupName(key, env))}`);
-  return '[' + lines.join(', ') + ']';
-}
-
-
-export const prettyPrint = (v: Value): string => {
-  if ('str' in v)
-    return JSON.stringify(v.str);
-  else if ('num' in v)
-    return `${v.num}`;
-  else if ('fun' in v)
-    return `${unparse(v.fun)} where ${envRepr(v.closure, v.fun.capturedNames)}`;
-  else if ('native' in v)
-    return typeof v.name === 'string' ? v.name : v.name();
-  else if ('symbol' in v)
-    return '.' + v.symbol;
-  else if ('bool' in v)
-    return `${v.bool}`;
-  else
-    return '[' + [...v.table.entries()].map(([k, v]) => `${k}: ${prettyPrint(v)}`).join(', ') + ']'
-};
-
-
-export const interpret = (expr: Expr, env: Env): Value => {
-  switch (expr.tag) {
-    case 'num':
-      return Num(expr.value);
-
-    case 'str':
-      return Str(expr.value);
-
-    case 'symbol':
-      return Symbol(expr.value);
-
-    case 'table':
-      return Table(Map(expr.pairs.map(([k, subexpr]) => [k, interpret(subexpr, env)])));
-
-    case 'name':
-      return lookupName(expr.name, env);
-
-    case 'app':
-      return applyFunction(interpret(expr.fun, env), interpret(expr.arg, env), env);
-
-    case 'lam':
-      return Fun(expr, env);
-
-    case 'ite':
-      return ifThenElse(expr.if, expr.then, expr.else, env);
-
+  constructor() {
+    this.options = DEFAULT_PARSER_OPTIONS;
+    [this.parser, this.setOptions] = makeParser(this.options);
   }
-};
+
+  public setPrio(name: string, prio: Priority) {
+    this.options = {
+      ...this.options,
+      priorities: {
+        ...this.options.priorities,
+        [name]: prio,
+      },
+    };
+    this.setOptions(this.options);
+  }
+
+  public parse(stream: TokenStream<Tok>) {
+    return this.parser.parse(stream);
+  }
+}
+
+
+
+export type LangError =
+  | { lexError: string; }
+  | { parseError: string; }
+  | { runtimeError: string; }
+  ;
+
+export class Interpreter {
+  private env: Env;
+  private stParser: StatefulParser;
+
+  constructor() {
+    this.env = makeEnv(this.envH);
+    this.stParser = new StatefulParser();
+  }
+
+  public runLine(line: string): Either<LangError, Value> {
+    let tokens: TokenStream<Tok>;
+    try {
+      tokens = lex(line);
+    } catch (e) {
+      return Err({ lexError: `${e}` });
+    }
+
+    const parsedE = this.stParser.parse(tokens);
+    if ('err' in parsedE)
+      return Err({ parseError: parsedE.err });
+    const [expr, remainingTokens] = parsedE.ok;
+    if (remainingTokens.length !== 0)
+      return Err({ parseError: 'unexpected end of input' });
+
+    try {
+      return Ok(interpret(expr, this.env));
+    } catch (e) {
+      return Err({ runtimeError: `${e}` });
+    }
+  }
+
+  ///
+
+  private get envH(): EnvHandle {
+    return {
+      setName: (name, value) => { this.setName(name, value); },
+      deleteName: name => { this.deleteName(name); }
+    };
+  }
+
+  private setName(name: string, value: Value) {
+    this.env.names = this.env.names.set(name, value);
+  }
+
+  private deleteName(name: string) {
+    this.env.names = this.env.names.delete(name);
+  }
+}
+
 
 
 const compose = (f1: Value, f2: Value): Value =>
@@ -144,7 +134,12 @@ const compose = (f1: Value, f2: Value): Value =>
   );
 
 
-const GLOBAL_ENV: Env = (() => {
+type EnvHandle = {
+  setName: (name: string, value: Value) => void,
+  deleteName: (name: string) => void,
+};
+
+const makeEnv = (h: EnvHandle): Env => {
   const _dumpEnv = (env: Env, depth: number = 0) => {
     [...env.names.entries()].sort().forEach(
       ([k, v]) => console.log('  '.repeat(depth) + `${k} : ${prettyPrint(v)}`)
@@ -172,8 +167,8 @@ const GLOBAL_ENV: Env = (() => {
             return applyFunction(fallbackV, key, env);
           return rv;
         }
-    )
-  ));
+      )
+    ));
 
   const ioFunctions = {
     'log': Native(
@@ -189,14 +184,14 @@ const GLOBAL_ENV: Env = (() => {
       a => {
         console.log(prettyPrint(a));
         return a;
-    }),
+      }),
 
     'define': Native(
       'IO.define',
       s => Native(
         `(IO.define ${prettyPrint(s)})`,
         v => {
-          GLOBAL_ENV.names = GLOBAL_ENV.names.set(asStrOrSymb(s), v);
+          h.setName(asStrOrSymb(s), v);
           return v;
         }
       )
@@ -205,7 +200,7 @@ const GLOBAL_ENV: Env = (() => {
     'forget': Native(
       'IO.forget',
       s => {
-        GLOBAL_ENV.names = GLOBAL_ENV.names.delete(asStrOrSymb(s));
+        h.deleteName(asStrOrSymb(s));
         return unit;
       }
     ),
@@ -276,77 +271,4 @@ const GLOBAL_ENV: Env = (() => {
       )
     })
   };
-})();
-
-export const PARSER = makeParser({
-  priorities: {
-    '+': Prio(6, 'left'),
-    '-': Prio(6, 'left'),
-    '*': Prio(8, 'left'),
-    '^': Prio(10, 'right'),
-    '++': Prio(10, 'left'),
-    '<<': Prio(3, 'right'),
-    '>>': Prio(3, 'left'),
-    '|>': Prio(2, 'left'),
-    '|?': Prio(3, 'right'),
-  },
-  namePriority: Prio(20, 'right'),
-  defaultPriority: Prio(5, 'left'),
-});
-
-
-export const run = (expr: Expr): Value => interpret(expr, GLOBAL_ENV);
-
-
-const ifThenElse = (ifExpr: Expr, thenExpr: Expr, elseExpr: Expr, env: Env): Value => {
-  const condition = interpret(ifExpr, env);
-  if (!('bool' in condition))
-    throw new Error(`A condition must be a boolean, got ${prettyPrint(condition)}`);
-
-  return interpret(
-    condition.bool ? thenExpr : elseExpr,
-    env
-  );
-};
-
-
-const bindNames = (declaration: LamArg, value: Value, env: Env): Map<string, Value> => {
-  if ('single' in declaration)
-    return Map({[declaration.single]: value});
-
-  return declaration.table.reduce(
-    (acc, [src, target]) =>
-      acc.concat(bindNames(
-        target,
-        applyFunction(value, Symbol(src), env),
-        env
-      )),
-    Map<string, Value>()
-  );
-}
-
-
-const applyFunction = (fun: Value, arg: Value, env: Env): Value => {
-  if ('native' in fun)
-    return fun.native(arg, env);
-
-  if ('fun' in fun)
-    return interpret(
-      fun.fun.expr,
-      {
-        parent: fun.closure,
-        names: bindNames(fun.fun.arg, arg, env)
-      }
-    );
-
-  if ('table' in fun) {
-    if (!('symbol' in arg))
-      throw new Error(`Cannot index a map ${prettyPrint(fun)} with ${prettyPrint(arg)}`);
-    const rv = fun.table.get(arg.symbol);
-    if (rv === undefined)
-      throw new Error(`Key ${arg.symbol} not found in ${prettyPrint(fun)}`);
-    return rv;
-  }
-
-  throw new Error(`Trying to apply ${prettyPrint(fun)}, which isn't a function`);
 };

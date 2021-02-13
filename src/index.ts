@@ -1,7 +1,8 @@
 import * as readline from 'readline';
-import { run, prettyPrint, PARSER } from './lang/interpreter';
+import { Interpreter } from './lang/interpreter';
 import { lex } from './lang/lexer';
 import { makeParser } from './lang/parser';
+import { prettyPrint } from './lang/runtime';
 import { consume } from './language';
 
 const rl = readline.createInterface({
@@ -16,37 +17,15 @@ const prompt = () => {
 rl.setPrompt('λ> ');
 
 
-const runCode = (input: string): void => {
-  const parser = PARSER;
-  let tokens;
-  try {
-    tokens = lex(input)
-  } catch (e) {
-    console.log(e);
-    return;
-  }
+const interpreter = new Interpreter();
 
-  let ast;
-  try {
-    const ea = consume(parser, tokens);
-    if ('err' in ea) {
-      console.log('Parse error:', ea.err);
-      console.log('Tokens:');
-      console.dir(tokens, {depth: null});
-      return;
-    }
-    ast = ea.ok
-  } catch (e) {
-    console.log(e);
-    return;
-  }
 
-  try {
-    console.log(prettyPrint(run(ast)));
-  } catch (e) {
-    console.log(e);
-    return;
-  }
+const runCode = (inputLine: string): void => {
+  const result = interpreter.runLine(inputLine);
+  if ('ok' in result)
+    console.log(prettyPrint(result.ok));
+  else
+    console.log(result.err);
 };
 
 

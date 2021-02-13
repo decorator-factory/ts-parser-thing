@@ -5,7 +5,7 @@ import { consume } from '../src/language';
 import { expect } from 'chai';
 
 
-const parser = makeParser({
+const [parser, _] = makeParser({
   priorities: {
     '+': Prio(3, 'right'),
     '-': Prio(3, 'left'),
