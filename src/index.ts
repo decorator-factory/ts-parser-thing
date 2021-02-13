@@ -12,13 +12,6 @@ const rl = readline.createInterface({
 });
 
 
-let currentId: number = 0;
-
-const prompt = () => {
-  process.stdout.write(`λ${currentId}> `, 'utf-8');
-};
-rl.setPrompt(`λ${currentId}> `);
-
 
 const printError = (e: LangError): string => {
   switch (e.type) {
@@ -63,8 +56,29 @@ const colorsSimple: ColorHandle = {
 const colors = chalk.level <= 2 ? colorsSimple : colorsRgb;
 
 const interpreters: Interpreter[] = [
-  new Interpreter(0, baseEnv => pushInterpreter(baseEnv), () => popInterpreter())
+  new Interpreter(
+    0,
+    {
+      spawnChild: baseEnv => pushInterpreter(baseEnv),
+      exit: () => popInterpreter(),
+      bringInterpreterToTop: id => bringInterpreterToTop(id),
+      findInterpreter: id => findInterpreter(id),
+      topInterpreter: () => topInterpreter(),
+    }
+  )
 ];
+
+
+const formatPrompt = () => chalk.underline(
+  chalk.greenBright('λ ')
+  + chalk.yellowBright(interpreters.map(i => `${i.id}`).join(':'))
+  + chalk.greenBright(' >')
+) + ' ';
+
+const prompt = () => {
+  process.stdout.write(formatPrompt(), 'utf-8');
+};
+rl.setPrompt(formatPrompt());
 
 const pushInterpreter = (baseEnv: Map<string, Value>) => {
   const newInterpreter = topInterpreter().derive(baseEnv);
@@ -76,8 +90,7 @@ const pushInterpreter = (baseEnv: Map<string, Value>) => {
 const topInterpreter = () => interpreters.slice(-1)[0];
 
 const updatePrompt = () => {
-  currentId = topInterpreter().id;
-  rl.setPrompt(`λ${currentId}> `);
+  rl.setPrompt(formatPrompt());
 };
 
 const popInterpreter = () => {
@@ -85,6 +98,19 @@ const popInterpreter = () => {
   if (interpreters.length === 0)
     process.exit(0);
   updatePrompt();
+};
+
+const findInterpreter = (id: number): Interpreter | null => {
+  const int = interpreters.find(i => i.id === id);
+  return int || null;
+};
+
+const bringInterpreterToTop = (id: number): Interpreter | null => {
+  const int = findInterpreter(id)
+  if (int)
+    interpreters.push(int)
+  updatePrompt();
+  return int;
 };
 
 const runCode = (inputLine: string): void => {
