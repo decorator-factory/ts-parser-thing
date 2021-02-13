@@ -43,19 +43,19 @@ const Native = (name: string, native: (v: Value, e: Env) => Value): Value => ({n
 
 const asNum = (v: Value): number => {
   if (!('num' in v))
-    throw new Error(`Expected number, got ${JSON.stringify(v)}`);
+    throw new Error(`Expected number, got ${prettyPrint(v)}`);
   return v.num;
 };
 
 const asStr = (v: Value): string => {
   if (!('str' in v))
-    throw new Error(`Expected string, got ${JSON.stringify(v)}`);
+    throw new Error(`Expected string, got ${prettyPrint(v)}`);
   return v.str;
 };
 
 const asSymb = (v: Value): string => {
   if (!('symbol' in v))
-    throw new Error(`Expected string, got ${JSON.stringify(v)}`);
+    throw new Error(`Expected symbol, got ${prettyPrint(v)}`);
   return v.symbol;
 };
 
@@ -147,7 +147,9 @@ export const PARSER = makeParser({
     '*': Prio(8, 'left'),
     '^': Prio(10, 'right'),
     '++': Prio(10, 'left'),
-    '.': Prio(1, 'right'),
+    '<<': Prio(3, 'right'),
+    '>>': Prio(3, 'left'),
+    '|>': Prio(2, 'left')
   },
   namePriority: Prio(20, 'left'),
   defaultPriority: Prio(5, 'left'),
