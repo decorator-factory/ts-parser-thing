@@ -1,8 +1,10 @@
 import * as readline from 'readline';
 import { Interpreter, LangError } from './lang/interpreter';
-import { prettyPrint } from './lang/runtime';
+import { prettyPrint, Value } from './lang/runtime';
 import { ColorHandle, identityColorHandle } from './lang/color';
+import { Map } from 'immutable';
 import chalk from 'chalk';
+
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -10,13 +12,12 @@ const rl = readline.createInterface({
 });
 
 
+let currentId: number = 0;
+
 const prompt = () => {
-  process.stdout.write('λ> ', 'utf-8');
+  process.stdout.write(`λ${currentId}> `, 'utf-8');
 };
-rl.setPrompt('λ> ');
-
-
-const interpreter = new Interpreter();
+rl.setPrompt(`λ${currentId}> `);
 
 
 const printError = (e: LangError): string => {
@@ -29,7 +30,6 @@ const printError = (e: LangError): string => {
       return chalk.red('Runtime error: ') + chalk.yellowBright(e.msg);
   }
 }
-
 
 const colorsRgb: ColorHandle = {
   ...identityColorHandle,
@@ -62,9 +62,33 @@ const colorsSimple: ColorHandle = {
 
 const colors = chalk.level <= 2 ? colorsSimple : colorsRgb;
 
+const interpreters: Interpreter[] = [
+  new Interpreter(0, baseEnv => pushInterpreter(baseEnv), () => popInterpreter())
+];
+
+const pushInterpreter = (baseEnv: Map<string, Value>) => {
+  const newInterpreter = topInterpreter().derive(baseEnv);
+  interpreters.push(newInterpreter);
+  updatePrompt();
+  return newInterpreter;
+};
+
+const topInterpreter = () => interpreters.slice(-1)[0];
+
+const updatePrompt = () => {
+  currentId = topInterpreter().id;
+  rl.setPrompt(`λ${currentId}> `);
+};
+
+const popInterpreter = () => {
+  interpreters.pop();
+  if (interpreters.length === 0)
+    process.exit(0);
+  updatePrompt();
+};
 
 const runCode = (inputLine: string): void => {
-  const result = interpreter.runLine(inputLine);
+  const result = topInterpreter().runLine(inputLine);
   if ('ok' in result)
     console.log(prettyPrint(result.ok, colors));
   else

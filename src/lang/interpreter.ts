@@ -42,7 +42,7 @@ const DEFAULT_PARSER_OPTIONS = {
 };
 
 
-class StatefulParser {
+export class StatefulParser {
   private parser: TokenParser<Tok, Expr>;
   private setOptions: (o: ParseOptions) => void;
   private options: ParseOptions;
@@ -79,10 +79,32 @@ export type LangError =
 export class Interpreter {
   private env: Env;
   private stParser: StatefulParser;
+  private spawnChild: (baseEnv: Map<string, Value>) => void;
+  private exit: () => void;
+  public readonly id: number;
 
-  constructor() {
-    this.env = makeEnv(this.envH);
-    this.stParser = new StatefulParser();
+  constructor(
+    id: number,
+    spawnChild: (baseEnv: Map<string, Value>) => void,
+    finish: () => void,
+    parentEnv: Env | null = null,
+    parser: StatefulParser | null = null,
+  ) {
+    this.id = id;
+    this.spawnChild = spawnChild;
+    this.exit = finish;
+    this.stParser = parser || new StatefulParser();
+    this.env = makeEnv(this.envH, parentEnv);
+  }
+
+  public derive(baseEnv: Map<string, Value>): Interpreter {
+    return new Interpreter(
+      this.id + 1,
+      this.spawnChild,
+      this.exit,
+      {parent: this.env, names: baseEnv},
+      this.stParser
+    );
   }
 
   public runLine(line: string): Either<LangError, Value> {
@@ -112,7 +134,9 @@ export class Interpreter {
   private get envH(): EnvHandle {
     return {
       setName: (name, value) => { this.setName(name, value); },
-      deleteName: name => { this.deleteName(name); }
+      deleteName: name => { this.deleteName(name); },
+      spawnChild: this.spawnChild,
+      exit: this.exit,
     };
   }
 
@@ -137,9 +161,11 @@ const compose = (f1: Value, f2: Value): Value =>
 type EnvHandle = {
   setName: (name: string, value: Value) => void,
   deleteName: (name: string) => void,
+  spawnChild: (baseEnv: Map<string, Value>) => void,
+  exit: () => void,
 };
 
-const makeEnv = (h: EnvHandle): Env => {
+const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
   const _dumpEnv = (env: Env, depth: number = 0) => {
     [...env.names.entries()].sort().forEach(
       ([k, v]) => console.log('  '.repeat(depth) + `${k} : ${prettyPrint(v)}`)
@@ -226,11 +252,28 @@ const makeEnv = (h: EnvHandle): Env => {
         _dumpEnv(env);
         return unit;
       }
-    )
+    ),
+
+    'branch': Native(
+      'IO.branch',
+      namesV => {
+        const table = asTable(namesV);
+        h.spawnChild(table);
+        return unit;
+      }
+    ),
+
+    'exit': Native(
+      'IO.exit',
+      () => {
+        h.exit();
+        return unit;
+      }
+    ),
   };
 
   return {
-    parent: null,
+    parent,
     names: Map({
       '+': Native('(+)', a => Native(`(${prettyPrint(a)} +)`, b => Num(asNum(a) + asNum(b)))),
       '-': Native('(-)', a => Native(`(${prettyPrint(a)} -)`, b => Num(asNum(a) - asNum(b)))),
