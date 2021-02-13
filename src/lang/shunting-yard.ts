@@ -11,23 +11,21 @@ const opsToStream: (ops: Ops) => Iterable<{op: Op}|{app: Expr}> =
       yield* [{op}, {app}];
   };
 
-
-  const getPriority =
-  (
-    operator: Op,
-    options: ParseOptions
-  ): Priority =>
-    operator.type === 'name'
-    ? options.namePriority
-    : options.priorities[operator.value] || options.defaultPriority;
-
-
+const getPriority =
+(
+  operator: Op,
+  options: ParseOptions
+): Priority =>
+  operator.type === 'name'
+  ? options.namePriority
+  : options.priorities[operator.value] || options.defaultPriority;
 
 
 export const shuntingYard = (
   ops: Ops,
   options: ParseOptions
 ): Expr => {
+  // This algorithm is pretty complex. Wikipedia can explain it better than I.s
   // https://en.wikipedia.org/wiki/Shunting-yard_algorithm
   const exprStack: Expr[] = [];
   const opStack: Op[] = [];
@@ -43,26 +41,33 @@ export const shuntingYard = (
   }
 
   for (const item of opsToStream(ops))
-    if ('app' in item)
+    if ('app' in item) {
       exprStack.push(item.app)
-    else
+    } else {
       if (opStack.length === 0) {
         opStack.push(item.op)
       } else {
-        while (
-          opStack.length > 0
-          &&
-            ((prio(item.op).strength < prio(opStack.slice(-1)[0]).strength)
-            || prio(item.op).direction === 'left')
-        )
+        while (true) {
+          if (opStack.length === 0)
+            break;
+          const myPrio = prio(item.op);
+          const topPrio = prio(opStack.slice(-1)[0])
+          if (!(
+            (myPrio.strength < topPrio.strength)
+            || (myPrio.strength === topPrio.strength && myPrio.direction === 'left')
+          ))
+            break;
           reduce();
+        }
         opStack.push(item.op);
       }
+    }
 
   while (opStack.length > 0)
     reduce();
 
   if (exprStack.length !== 1)
     never();
+
   return exprStack[0];
 };
