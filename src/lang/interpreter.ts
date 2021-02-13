@@ -71,9 +71,9 @@ class StatefulParser {
 
 
 export type LangError =
-  | { lexError: string; }
-  | { parseError: string; }
-  | { runtimeError: string; }
+  | { type: 'lexError', msg: string }
+  | { type: 'parseError', msg: string }
+  | { type: 'runtimeError', msg: string }
   ;
 
 export class Interpreter {
@@ -90,20 +90,20 @@ export class Interpreter {
     try {
       tokens = lex(line);
     } catch (e) {
-      return Err({ lexError: `${e}` });
+      return Err({ type: 'lexError', msg: `${e}` });
     }
 
     const parsedE = this.stParser.parse(tokens);
     if ('err' in parsedE)
-      return Err({ parseError: parsedE.err });
+      return Err({ type: 'parseError', msg: parsedE.err });
     const [expr, remainingTokens] = parsedE.ok;
     if (remainingTokens.length !== 0)
-      return Err({ parseError: 'unexpected end of input' });
+      return Err({ type: 'parseError', msg: 'unexpected end of input' });
 
     try {
       return Ok(interpret(expr, this.env));
     } catch (e) {
-      return Err({ runtimeError: `${e}` });
+      return Err({ type: 'runtimeError', msg: `${e}` });
     }
   }
 

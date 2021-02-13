@@ -4,6 +4,7 @@ import { Tok } from './lexer'
 import { Op, Ops, Expr, ParseOptions, Lam, App, Name, Num, Str, Table, Symbol, IfThenElse, ArgSingle, LamArg, ArgTable, LamT } from './ast'
 import { shuntingYard } from './shunting-yard'
 import { lex } from './lexer'
+import { ColorHandle, identityColorHandle } from './color';
 
 
 const L = new Lang<Tok>();
@@ -173,17 +174,21 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
 const isIdentifier = (s: string) => /^(?![0-9])[a-zA-Z_0-9]+$/.test(s);
 
 
-const unparseArg = (arg: LamArg): string =>
+const unparseArg = (arg: LamArg, col: ColorHandle): string =>
   'single' in arg
-  ? arg.single
-  : '[' + arg.table.map(
-    ([target, source]) =>
-      'single' in source && source.single === target
-      ? target
-      : target + ': ' + unparseArg(source)
-  ).join(', ') + ']';
+  ? col.arg(arg.single)
+  : (
+    col.argBracket('[')
+    + arg.table.map(
+        ([target, source]) =>
+          'single' in source && source.single === target
+          ? col.arg(target)
+          : col.arg(target) + ': ' + unparseArg(source, col)
+      ).join(', ')
+    + col.argBracket(']')
+  );
 
-const unparseApp = ({fun, arg} : {fun: Expr, arg: Expr}): string => {
+const unparseApp = ({fun, arg}: {fun: Expr, arg: Expr}, col: ColorHandle): string => {
   const args: Expr[] = [];
   while (fun.tag === 'app'){
     args.push(arg);
@@ -192,10 +197,10 @@ const unparseApp = ({fun, arg} : {fun: Expr, arg: Expr}): string => {
   }
   args.push(arg);
   args.reverse();
-  return '(' + unparse(fun) + ' ' + args.map(unparse).join(' ') + ')';
+  return '(' + unparse(fun, col) + ' ' + args.map(e => unparse(e, col)).join(' ') + ')';
 };
 
-const unparseLam = (lam: LamT): string => {
+const unparseLam = (lam: LamT, col: ColorHandle): string => {
   // right operator section, like `(- 5)`, is encoded as a lambda: {_: _ - 5}
   // TODO: refactor
   if ('single' in lam.arg
@@ -206,7 +211,7 @@ const unparseLam = (lam: LamT): string => {
       && !isIdentifier(lam.expr.fun.fun.name)
       && lam.expr.fun.arg.tag === 'name'
       && lam.expr.fun.arg.name === '_')
-        return '(' + lam.expr.fun.fun.name + ' ' + unparse(lam.expr.arg) + ')';
+        return '(' + col.name(lam.expr.fun.fun.name) + ' ' + unparse(lam.expr.arg, col) + ')';
 
   const args: LamArg[] = [];
   while (lam.expr.tag === 'lam') {
@@ -214,18 +219,40 @@ const unparseLam = (lam: LamT): string => {
     lam = lam.expr;
   }
   args.push(lam.arg);
-  return '{' + args.map(unparseArg).join(' ') + ': ' + unparse(lam.expr) + '}';
+  return (
+    col.brace('{')
+    + args.map(e => unparseArg(e, col)).join(' ')
+    + ': '
+    + unparse(lam.expr, col)
+    + col.brace('}')
+  );
 }
 
-export const unparse = (expr: Expr): string => {
+export const unparse = (expr: Expr, col: ColorHandle = identityColorHandle): string => {
   switch (expr.tag) {
-    case 'name': return isIdentifier(expr.name) ? expr.name : `(${expr.name})`;
-    case 'num': return `${expr.value}`;
-    case 'str': return JSON.stringify(expr.value);
-    case 'symbol': return '.' + expr.value;
-    case 'table': return '[' + expr.pairs.map(([k, v]) => `${k}: ${unparse(v)}`).join(', ') + ']'
-    case 'app': return unparseApp(expr);
-    case 'lam': return unparseLam(expr);
-    case 'ite': return `if ${expr.if} then ${expr.then} else ${expr.else}`;
+    case 'name': return col.name(isIdentifier(expr.name) ? expr.name : `(${expr.name})`);
+    case 'num': return col.num(`${expr.value}`);
+    case 'str': return col.str(JSON.stringify(expr.value));
+    case 'symbol': return col.symbol('.' + expr.value);
+    case 'table': return (
+        col.bracket('[')
+        + expr.pairs.map(([k, v]) => `${col.name(k)}: ${unparse(v, col)}`).join(', ')
+        + col.bracket(']')
+      );
+    case 'app': return unparseApp(expr, col);
+    case 'lam': return unparseLam(expr, col);
+    case 'ite': return (
+      col.keyword('if')
+      + ' '
+      + unparse(expr.if, col)
+      + ' '
+      + col.keyword('then')
+      + ' '
+      + unparse(expr.then, col)
+      + ' '
+      + col.keyword('else')
+      + ' '
+      + unparse(expr.else, col)
+    );
   }
 };

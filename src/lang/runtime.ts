@@ -1,6 +1,7 @@
 import { Expr, LamArg, LamT, Prio } from './ast';
 import { makeParser, unparse } from './parser';
 import { Map } from 'immutable';
+import { ColorHandle, identityColorHandle } from './color';
 
 
 const lookupName = (name: string, env: Env): Value => {
@@ -81,29 +82,43 @@ export const asFun = (v: Value): FunT => {
 };
 
 
-export const envRepr = (env: Env, keys: string[]): string => {
+export const envRepr = (env: Env, keys: string[], col: ColorHandle = identityColorHandle): string => {
   const lines: string[] = [];
   for (const key of keys)
-    lines.push(`${key}: ${prettyPrint(lookupName(key, env))}`);
-  return '[' + lines.join(', ') + ']';
+    lines.push(`${key}: ${prettyPrint(lookupName(key, env), col)}`);
+  return col.bracket('[') + lines.join(', ') + col.bracket(']');
 }
 
 
-export const prettyPrint = (v: Value): string => {
+export const prettyPrint = (v: Value, col: ColorHandle = identityColorHandle): string => {
   if ('str' in v)
-    return JSON.stringify(v.str);
+    return col.str(JSON.stringify(v.str));
+
   else if ('num' in v)
-    return `${v.num}`;
+    return col.num(`${v.num}`);
+
   else if ('fun' in v)
-    return `${unparse(v.fun)} where ${envRepr(v.closure, v.fun.capturedNames)}`;
+    return (v.fun.capturedNames.length === 0)
+      ? `${unparse(v.fun, col)}`
+      : `${unparse(v.fun, col)} where ${envRepr(v.closure, v.fun.capturedNames, col)}`;
+
   else if ('native' in v)
-    return typeof v.name === 'string' ? v.name : v.name();
+    return col.native(typeof v.name === 'string' ? v.name : v.name());
+
   else if ('symbol' in v)
-    return '.' + v.symbol;
+    return col.symbol('.' + v.symbol);
+
   else if ('bool' in v)
-    return `${v.bool}`;
+    return col.constant(`${v.bool}`);
+
   else
-    return '[' + [...v.table.entries()].map(([k, v]) => `${k}: ${prettyPrint(v)}`).join(', ') + ']'
+    return v.table.size === 0
+      ? col.constant('[]')
+      : (
+        col.bracket('[')
+        + [...v.table.entries()].map(([k, v]) => `${col.name(k)}: ${prettyPrint(v, col)}`).join(', ')
+        + col.bracket(']')
+      );
 };
 
 
