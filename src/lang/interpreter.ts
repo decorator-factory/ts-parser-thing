@@ -220,13 +220,16 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
 
     'define': Native(
       'IO.define',
-      s => Native(
-        `(IO.define ${prettyPrint(s)})`,
-        v => {
-          h.setName(asStrOrSymb(s), v);
-          return v;
-        }
-      )
+      s => {
+        h.deleteName(asStrOrSymb(s));
+        return Native(
+          `(IO.define ${prettyPrint(s)})`,
+          v => {
+            h.setName(asStrOrSymb(s), v);
+            return v;
+          }
+        );
+      }
     ),
 
     'forget': Native(

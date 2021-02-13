@@ -13,6 +13,15 @@ const lookupName = (name: string, env: Env): Value => {
   return lookupName(name, env.parent);
 };
 
+const tryLookupName = (name: string, env: Env): Value | null => {
+  const rv = env.names.get(name);
+  if (rv !== undefined)
+    return rv;
+  if (env.parent === null)
+    return null;
+  return tryLookupName(name, env.parent);
+};
+
 
 export type Env = {
   parent: Env | null;
@@ -82,15 +91,24 @@ export const asFun = (v: Value): FunT => {
 };
 
 
-export const envRepr = (env: Env, keys: string[], col: ColorHandle = identityColorHandle): string => {
+export const envRepr = (env: Env, keys: string[], col: ColorHandle = identityColorHandle, depth: number = 0): string => {
+  if (depth > 3)
+    return col.bracket('[') + '...' + col.bracket(']');
+
   const lines: string[] = [];
-  for (const key of keys)
-    lines.push(`${key}: ${prettyPrint(lookupName(key, env), col)}`);
+  for (const key of keys){
+    const v = tryLookupName(key, env);
+    const vs = v === null ? "?" : prettyPrint(v, col, depth+1);
+    lines.push(`${key}: ${vs}`);
+  }
   return col.bracket('[') + lines.join(', ') + col.bracket(']');
 }
 
 
-export const prettyPrint = (v: Value, col: ColorHandle = identityColorHandle): string => {
+export const prettyPrint = (v: Value, col: ColorHandle = identityColorHandle, depth: number = 0): string => {
+  if (depth > 12)
+    return "...";
+
   if ('str' in v)
     return col.str(JSON.stringify(v.str));
 
@@ -99,8 +117,8 @@ export const prettyPrint = (v: Value, col: ColorHandle = identityColorHandle): s
 
   else if ('fun' in v)
     return (v.fun.capturedNames.length === 0)
-      ? `${unparse(v.fun, col)}`
-      : `${unparse(v.fun, col)} where ${envRepr(v.closure, v.fun.capturedNames, col)}`;
+      ? `${unparse(v.fun, col, depth)}`
+      : `${unparse(v.fun, col, depth)} where ${envRepr(v.closure, v.fun.capturedNames, col, depth+1)}`;
 
   else if ('native' in v)
     return col.native(typeof v.name === 'string' ? v.name : v.name());
@@ -116,7 +134,7 @@ export const prettyPrint = (v: Value, col: ColorHandle = identityColorHandle): s
       ? col.constant('[]')
       : (
         col.bracket('[')
-        + [...v.table.entries()].map(([k, v]) => `${col.name(k)}: ${prettyPrint(v, col)}`).join(', ')
+        + [...v.table.entries()].map(([k, v]) => `${col.name(k)}: ${prettyPrint(v, col, depth + 1)}`).join(', ')
         + col.bracket(']')
       );
 };

@@ -228,7 +228,10 @@ const unparseLam = (lam: LamT, col: ColorHandle): string => {
   );
 }
 
-export const unparse = (expr: Expr, col: ColorHandle = identityColorHandle): string => {
+export const unparse = (expr: Expr, col: ColorHandle = identityColorHandle, depth: number = 0): string => {
+  if (depth > 12)
+    return '...';
+
   switch (expr.tag) {
     case 'name': return col.name(isIdentifier(expr.name) ? expr.name : `(${expr.name})`);
     case 'num': return col.num(`${expr.value}`);
@@ -236,7 +239,7 @@ export const unparse = (expr: Expr, col: ColorHandle = identityColorHandle): str
     case 'symbol': return col.symbol('.' + expr.value);
     case 'table': return (
         col.bracket('[')
-        + expr.pairs.map(([k, v]) => `${col.name(k)}: ${unparse(v, col)}`).join(', ')
+        + expr.pairs.map(([k, v]) => `${col.name(k)}: ${unparse(v, col, depth+1)}`).join(', ')
         + col.bracket(']')
       );
     case 'app': return unparseApp(expr, col);
@@ -244,15 +247,15 @@ export const unparse = (expr: Expr, col: ColorHandle = identityColorHandle): str
     case 'ite': return (
       col.keyword('if')
       + ' '
-      + unparse(expr.if, col)
+      + unparse(expr.if, col, depth+1)
       + ' '
       + col.keyword('then')
       + ' '
-      + unparse(expr.then, col)
+      + unparse(expr.then, col, depth+1)
       + ' '
       + col.keyword('else')
       + ' '
-      + unparse(expr.else, col)
+      + unparse(expr.else, col, depth+1)
     );
   }
 };
