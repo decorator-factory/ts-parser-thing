@@ -12,7 +12,7 @@ export type Tok =
   | 'comma'
   | 'col'
   | 'op'
-  | 'infixName'
+  | 'backtick'
   | 'string1'
   | 'string2'
   | 'if'
@@ -53,7 +53,7 @@ const re = makeRegexp(
   ['dot',       /\./                       ],
   ['num',       /[-+]?(?:0|[1-9][0-9]*)/   ],
   ['op',        /[-+=*/%!|&^$><?]+/        ],
-  ['infixName', /`(?![0-9])[a-zA-Z_0-9]+`/ ],
+  ['backtick',  /`/                        ],
   ['string1',   /'(?:\\.|[^'])*'/          ],
   ['string2',   /"(?:\\.|[^"])*"/          ],
 );

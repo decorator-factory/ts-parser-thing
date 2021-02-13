@@ -37,7 +37,7 @@ const DEFAULT_PARSER_OPTIONS = {
     '|>': Prio(2, 'left'),
     '|?': Prio(3, 'right'),
   },
-  namePriority: Prio(20, 'right'),
+  backtickPriority: Prio(20, 'right'),
   defaultPriority: Prio(5, 'left'),
 };
 
@@ -316,6 +316,10 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
       )
     )
   }));
+
+  // const numFunctions = Table(Map({
+  //   '='
+  // }));
 
   return {
     parent,

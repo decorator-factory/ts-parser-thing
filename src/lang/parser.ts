@@ -33,7 +33,11 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
   const str = L.reading('string1', eval).or(L.reading('string2', eval)).map(Str);
 
   // Symbol
-  const symbol = L.oneOf('dot').then(L.reading('name', Symbol));
+  const symbol =
+    L.oneOf('dot').then(
+      L.reading('name', Symbol)
+      .or(L.reading('op', Symbol))
+    );
 
   // Parenthesized expression
   const paren = inParen(exprParser);
@@ -120,7 +124,7 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
   // Operator section
   const _op =
     L.reading('op', Name)
-    .or(L.reading('infixName', name => Name(name.slice(1, -1))));
+    .or(L.oneOf('backtick').then(L.reading('name', Name)).neht(L.oneOf('backtick')));
 
   const _leftSection = // (+ 1)
     inParen(Comb.pair(_op, atomic))
@@ -147,12 +151,12 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
       value => ({type: 'infix', value})
     );
 
-  const _nameInfixOp =
-    L.reading<Op>('infixName',
-      name => ({type: 'name', value: name.slice(1, -1)})
-    );
+  const _backtickInfixExpr =
+    L.oneOf('backtick')
+    .then(exprParser.map<Op>(expr => ({type: 'expr', expr})))
+    .neht(L.oneOf('backtick'));
 
-  const _infixOperator = _symbolInfixOp.or(_nameInfixOp);
+  const _infixOperator = _symbolInfixOp.or(_backtickInfixExpr);
 
   // Infix operator application using the Shunting yard algorithm:
   const _operatorList: P<Ops> = Comb.pair(

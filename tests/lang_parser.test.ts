@@ -11,7 +11,7 @@ const [parser, _] = makeParser({
     '-': Prio(3, 'left'),
     '*': Prio(3, 'right'),
   },
-  namePriority: Prio(9, 'right'),
+  backtickPriority: Prio(9, 'right'),
   defaultPriority: Prio(8, 'right'),
 });
 

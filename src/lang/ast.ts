@@ -20,7 +20,9 @@ export const ArgTable = (table: [string, LamArg][]): LamArg => ({table});
 export type LamT =
   {tag: 'lam', arg: LamArg, expr: Expr, capturedNames: string[]};
 
-export type Op = {type: 'infix' | 'name', value: string}
+export type Op =
+  | {type: 'infix', value: string}
+  | {type: 'expr', expr: Expr}
 
 export type Ops = {initial: Expr, chunks: [Op, Expr][]}
 
@@ -33,7 +35,7 @@ export const Prio = (
 
 export type ParseOptions = {
   priorities: Record<string, Priority>,
-  namePriority: Priority,  // priority for (a `f` b `g` c)
+  backtickPriority: Priority,  // priority for (a `f` b `g` c)
   defaultPriority: Priority
 }
 
