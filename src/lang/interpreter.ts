@@ -137,7 +137,6 @@ export class Interpreter {
 }
 
 
-
 const compose = (f1: Value, f2: Value): Value =>
   Native(
     `(${prettyPrint(f2)} >> ${prettyPrint(f1)})`,
@@ -145,149 +144,179 @@ const compose = (f1: Value, f2: Value): Value =>
   );
 
 
-type EnvHandle = {
+/// Prelude
+
+
+export type EnvHandle = {
   setName: (name: string, value: Value) => void,
   deleteName: (name: string) => void,
   exit: () => void,
 };
 
-const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
-  const _dumpEnv = (env: Env, depth: number = 0) => {
-    [...env.names.entries()].sort().forEach(
-      ([k, v]) => console.log('  '.repeat(depth) + `${k} : ${prettyPrint(v)}`)
-    );
-    if (env.parent !== null)
-      _dumpEnv(env.parent, depth + 1);
-  };
 
-  const unit: Value = Table(Map({}));
+const unit: Value = Table(Map({}));
 
-  const _fallback = Native(
-    '(|?)',
-    tableV => Native(
-      () => `(${prettyPrint(tableV)} |?)`,
-      (fallbackV) => Native(
-        () => `(${prettyPrint(tableV)} |? ${prettyPrint(fallbackV)})`,
-        (key, env) => {
-          if (!('table' in tableV))
-            return applyFunction(tableV, key, env);
-          const table = asTable(tableV);
-          if (!('symbol' in key))
-            return applyFunction(fallbackV, key, env);
-          const rv = table.get(key.symbol);
-          if (rv === undefined)
-            return applyFunction(fallbackV, key, env);
-          return rv;
+
+const _makeModule = (
+  name: string,
+  table: Map<string, Value>
+) => {
+  const tableV = Table(table.set('__table__', Table(table)));
+  return Native(name, (key, env) => applyFunction(tableV, key, env))
+};
+
+
+const _dumpEnv = (env: Env, depth: number = 0) => {
+  [...env.names.entries()].sort().forEach(
+    ([k, v]) => console.log('  '.repeat(depth) + `${k} : ${prettyPrint(v)}`)
+  );
+  if (env.parent !== null)
+    _dumpEnv(env.parent, depth + 1);
+};
+
+
+const _binOp =
+<A, B>(
+  name: string,
+  first: (a: Value) => A,
+  second: (b: Value) => B,
+  f: (a: A, b: B, env: Env) => Value
+): Value =>
+  Native(
+    `(${name})`,
+    a => Native(
+      () =>`(${prettyPrint(a)} ${name})`,
+      (b, env) => f(first(a), second(b), env)
+    )
+  );
+
+
+const _binOpId = (
+  name: string,
+  f: (a: Value, b: Value, env: Env) => Value
+): Value =>
+  _binOp(name, a=>a, b=>b, f);
+
+
+const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
+  'log': Native(
+    'IO.log',
+    s => {
+      console.log(asStr(s));
+      return unit;
+    }
+  ),
+
+  'debug': Native(
+    'IO.debug',
+    a => {
+      console.log(prettyPrint(a));
+      return a;
+    }),
+
+  'define': Native(
+    'IO.define',
+    s => {
+      h.deleteName(asStrOrSymb(s));
+      return Native(
+        `(IO.define ${prettyPrint(s)})`,
+        v => {
+          h.setName(asStrOrSymb(s), v);
+          return v;
         }
-      )
-    ));
-
-  const ioFunctions = Map({
-    'log': Native(
-      'IO.log',
-      s => {
-        console.log(asStr(s));
-        return unit;
-      }
-    ),
-
-    'debug': Native(
-      'IO.debug',
-      a => {
-        console.log(prettyPrint(a));
-        return a;
-      }),
-
-    'define': Native(
-      'IO.define',
-      s => {
-        h.deleteName(asStrOrSymb(s));
-        return Native(
-          `(IO.define ${prettyPrint(s)})`,
-          v => {
-            h.setName(asStrOrSymb(s), v);
-            return v;
-          }
-        );
-      }
-    ),
-
-    'forget': Native(
-      'IO.forget',
-      s => {
-        h.deleteName(asStrOrSymb(s));
-        return unit;
-      }
-    ),
-
-    'try': Native(
-      'IO.try',
-      (fn, env) => {
-        try {
-          return Table(Map({
-            ok: applyFunction(fn, unit, env)
-          }));
-        } catch (e) {
-          return Table(Map({
-            error: Str(`${e}`)
-          }));
-        }
-      }
-    ),
-
-    'locals': Native(
-      'IO.locals',
-      (_, env) => {
-        _dumpEnv(env);
-        return unit;
-      }
-    ),
-
-    'exit': Native(
-      'IO.exit',
-      () => {
-        h.exit();
-        return unit;
-      }
-    ),
-  });
-
-  const _binOp =
-    <A, B>(
-      name: string,
-      first: (a: Value) => A,
-      second: (b: Value) => B,
-      f: (a: A, b: B, env: Env) => Value
-    ): Value =>
-      Native(
-        `(${name})`,
-        a => Native(
-          () =>`(${prettyPrint(a)} ${name})`,
-          (b, env) => f(first(a), second(b), env)
-        )
       );
+    }
+  ),
 
-  const _binOpId = (
-      name: string,
-      f: (a: Value, b: Value, env: Env) => Value
-    ): Value =>
-      _binOp(name, a=>a, b=>b, f);
+  'forget': Native(
+    'IO.forget',
+    s => {
+      h.deleteName(asStrOrSymb(s));
+      return unit;
+    }
+  ),
 
-  const _makeModule = (
-      name: string,
-      table: Map<string, Value>
-    ) => {
-      const tableV = Table(table.set('__table__', Table(table)));
-      return Native(name, (key, env) => applyFunction(tableV, key, env))
-    };
+  'try': Native(
+    'IO.try',
+    (fn, env) => {
+      try {
+        return Table(Map({
+          ok: applyFunction(fn, unit, env)
+        }));
+      } catch (e) {
+        return Table(Map({
+          error: Str(`${e}`)
+        }));
+      }
+    }
+  ),
 
-  const numFunctions = Map({
-    '=': _binOp('=', asNum, asNum, (a, b) => Bool(a === b)),
-  });
+  'locals': Native(
+    'IO.locals',
+    (_, env) => {
+      _dumpEnv(env);
+      return unit;
+    }
+  ),
 
-  const strFunctions = Map({
-    '=': _binOp('=', asStr, asStr, (a, b) => Bool(a === b)),
-  });
+  'exit': Native(
+    'IO.exit',
+    () => {
+      h.exit();
+      return unit;
+    }
+  ),
+}));
+
+
+const ModuleNum = _makeModule("Num", Map({
+  '=': _binOp('=', asNum, asNum, (a, b) => Bool(a === b)),
+}));
+
+
+const ModuleStr = _makeModule("Str", Map({
+  '=': _binOp('=', asStr, asStr, (a, b) => Bool(a === b)),
+}));
+
+
+const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
+
+  // const _fallback = Native(
+  //   '(|?)',
+  //   tableV => Native(
+  //     () => `(${prettyPrint(tableV)} |?)`,
+  //     (fallbackV) => Native(
+  //       () => `(${prettyPrint(tableV)} |? ${prettyPrint(fallbackV)})`,
+  //       (key, env) => {
+  //         if (!('table' in tableV))
+  //           return applyFunction(tableV, key, env);
+  //         const table = asTable(tableV);
+  //         if (!('symbol' in key))
+  //           return applyFunction(fallbackV, key, env);
+  //         const rv = table.get(key.symbol);
+  //         if (rv === undefined)
+  //           return applyFunction(fallbackV, key, env);
+  //         return rv;
+  //       }
+  //     )
+  //   ));
+
+  const _fallback = _binOpId('|?', (tableV, fallbackV) =>
+    Native(
+      () => `(${prettyPrint(tableV)} |? ${prettyPrint(fallbackV)})`,
+      (key, env) => {
+        if (!('table' in tableV))
+          return applyFunction(tableV, key, env);
+        const table = asTable(tableV);
+        if (!('symbol' in key))
+          return applyFunction(fallbackV, key, env);
+        const rv = table.get(key.symbol);
+        if (rv === undefined)
+          return applyFunction(fallbackV, key, env);
+        return rv;
+      }
+    )
+  );
 
   return {
     parent,
@@ -308,9 +337,9 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
       'fallback': _fallback,
       '|?': _fallback,
 
-      'Num': _makeModule('Num', numFunctions),
-      'Str': _makeModule('Str', strFunctions),
-      'IO': _makeModule('IO', ioFunctions),
+      'Num': ModuleNum,
+      'Str': ModuleStr,
+      'IO': ModuleIO(h),
 
       'given': Native(
         'given',
