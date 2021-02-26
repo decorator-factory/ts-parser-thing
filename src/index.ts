@@ -57,10 +57,20 @@ const colorsSimple: ColorHandle = {
 const colors = chalk.level <= 2 ? colorsSimple : colorsRgb;
 
 
-const interpreter = new Interpreter(() => {});
+const interpreter = new Interpreter(() => process.exit());
 
 
 const formatPrompt = () => chalk.greenBright('λ > ');
+
+
+rl.on('SIGINT', function () {
+  rl.question("Exit [y/n]? ", answer => {
+    if (["y", "Y", "yes"].includes(answer))
+      process.exit();
+    else
+      prompt();
+  })
+})
 
 
 const prompt = () => {
