@@ -116,3 +116,6 @@ const main = () => {
     prompt();
   });
 };
+
+
+main();
