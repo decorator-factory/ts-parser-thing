@@ -76,39 +76,19 @@ export type LangError =
   | { type: 'runtimeError', msg: string }
   ;
 
-export type InterpreterHandle = {
-  spawnChild: (baseEnv: Map<string, Value>) => void,
-  bringInterpreterToTop: (id: number) => Interpreter | null,
-  findInterpreter: (id: number) => Interpreter | null,
-  topInterpreter: () => Interpreter,
-  exit: () => void,
-};
-
 export class Interpreter {
   private env: Env;
   private stParser: StatefulParser;
-  public handle: InterpreterHandle;
-  public readonly id: number;
+  private exit: () => void;
 
   constructor(
-    id: number,
-    handle: InterpreterHandle,
+    exit: () => void,
     parentEnv: Env | null = null,
     parser: StatefulParser | null = null,
   ) {
-    this.id = id;
-    this.handle = handle;
+    this.exit = exit;
     this.stParser = parser || new StatefulParser();
     this.env = makeEnv(this.envH, parentEnv);
-  }
-
-  public derive(baseEnv: Map<string, Value>): Interpreter {
-    return new Interpreter(
-      this.id + 1,
-      this.handle,
-      {parent: this.env, names: baseEnv},
-      this.stParser
-    );
   }
 
   public runAst(expr: Expr): Either<LangError, Value> {
@@ -143,7 +123,7 @@ export class Interpreter {
     return {
       setName: (name, value) => { this.setName(name, value); },
       deleteName: name => { this.deleteName(name); },
-      interpreterHandle: this.handle
+      exit: this.exit,
     };
   }
 
@@ -168,7 +148,7 @@ const compose = (f1: Value, f2: Value): Value =>
 type EnvHandle = {
   setName: (name: string, value: Value) => void,
   deleteName: (name: string) => void,
-  interpreterHandle: InterpreterHandle,
+  exit: () => void,
 };
 
 const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
@@ -263,58 +243,13 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
       }
     ),
 
-    'branch': Native(
-      'IO.branch',
-      namesV => {
-        const topInt = h.interpreterHandle.topInterpreter();
-        if (h.interpreterHandle.findInterpreter(topInt.id + 1))
-          throw new Error(`Interpreter ${topInt.id + 1} already exists`);
-
-        const table = asTable(namesV);
-        h.interpreterHandle.spawnChild(table);
-        return unit;
-      }
-    ),
-
     'exit': Native(
       'IO.exit',
       () => {
-        h.interpreterHandle.exit();
+        h.exit();
         return unit;
       }
     ),
-
-    'bringUp': Native(
-      'IO.bringUp',
-      idV => {
-        const id = asNum(idV);
-        const interpreter = h.interpreterHandle.bringInterpreterToTop(id);
-        if (!interpreter)
-          throw new Error(`Interpreter not found: ${id}`);
-        return unit;
-      }
-    ),
-
-    'execIn': Native(
-      'IO.execIn',
-      idV => Native(
-        `(IO.execIn ${prettyPrint(idV)})`,
-        fnV => {
-          const id = asNum(idV);
-          const interpreter = h.interpreterHandle.findInterpreter(id);
-          if (!interpreter)
-            throw new Error(`Interpreter not found: ${id}`);
-
-          const fun = asFun(fnV);
-          const rv = interpreter.runAst(fun.fun.expr);
-
-          if ('ok' in rv)
-            return Table(Map({ok: rv.ok}));
-          else
-            return Table(Map({err: Str(rv.err.msg)}));
-        }
-      )
-    )
   });
 
   const _binOp =
