@@ -281,11 +281,19 @@ const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
 
 const ModuleNum = _makeModule("Num", Map({
   '=': _binOp('=', asNum, asNum, (a, b) => Ok(Bool(a === b))),
+  '!=': _binOp('!=', asNum, asNum, (a, b) => Ok(Bool(a !== b))),
+  '<': _binOp('<', asNum, asNum, (a, b) => Ok(Bool(a < b))),
+  '>': _binOp('>', asNum, asNum, (a, b) => Ok(Bool(a > b))),
+  '>=': _binOp('>=', asNum, asNum, (a, b) => Ok(Bool(a >= b))),
+  '<=': _binOp('<=', asNum, asNum, (a, b) => Ok(Bool(a <= b))),
 }));
 
 
 const ModuleStr = _makeModule("Str", Map({
   '=': _binOp('=', asStr, asStr, (a, b) => Ok(Bool(a === b))),
+  '!=': _binOp('!=', asStr, asStr, (a, b) => Ok(Bool(a !== b))),
+  'lower?': Native('lower?', value => Ei.map(asStr(value), s => Bool(s.toLowerCase() === s))),
+  'upper?': Native('upper?', value => Ei.map(asStr(value), s => Bool(s.toUpperCase() === s))),
 }));
 
 
@@ -329,28 +337,6 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
       'Num': ModuleNum,
       'Str': ModuleStr,
       'IO': ModuleIO(h),
-
-      // 'given': Native(
-      //   'given',
-      //   namesV => Native(
-      //     () => `(given ${prettyPrint(namesV)})`,
-      //     (funV, env) => {
-      //       const table = asTable(namesV);
-      //       const fun = asFun(funV);
-
-      //       const newClosure: Env = {
-      //         parent: fun.closure,
-      //         names: table
-      //       };
-
-      //       const newFun: FunT = {
-      //         fun: fun.fun,
-      //         closure: newClosure
-      //       };
-      //       return applyFunction(newFun, unit, env);
-      //     }
-      //   )
-      // )
     })
   };
 };
