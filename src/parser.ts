@@ -1,7 +1,7 @@
-import { Either, either, Ok, Err } from './either';
+import { Either, dispatch, Ok, Err } from './either';
 import * as Ei from './either';
 
-export {Either, either, Ok, Err, Ei}
+export {Either, dispatch as either, Ok, Err, Ei}
 export type ParserF<S, A> = (src: S) => Either<string, [A, S]>;
 
 

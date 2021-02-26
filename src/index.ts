@@ -1,6 +1,6 @@
 import * as readline from 'readline';
 import { Interpreter, LangError } from './lang/interpreter';
-import { prettyPrint, Value } from './lang/runtime';
+import { prettyPrint, RuntimeError, Value } from './lang/runtime';
 import { ColorHandle, identityColorHandle } from './lang/color';
 import { Map } from 'immutable';
 import chalk from 'chalk';
@@ -12,6 +12,25 @@ const rl = readline.createInterface({
 });
 
 
+const printErrorType = (k: RuntimeError['type']): string => ({
+  'missingKey': 'missing key',
+  'unexpectedType': 'unexpected type',
+  'undefinedName': 'name not defined',
+}[k]);
+
+
+const printErrorDetails = (e: RuntimeError): string => {
+  switch (e.type) {
+    case 'missingKey':
+      return e.details.key;
+    case 'undefinedName':
+      return e.details.name;
+    case 'unexpectedType':
+      return `expected ${e.details.expected}, got ${prettyPrint(e.details.got, colors)}`
+  }
+}
+
+
 const printError = (e: LangError): string => {
   switch (e.type) {
     case 'lexError':
@@ -19,7 +38,12 @@ const printError = (e: LangError): string => {
     case 'parseError':
       return chalk.red('Parse error: ') + chalk.yellowBright(e.msg);
     case 'runtimeError':
-      return chalk.red('Runtime error: ') + chalk.yellowBright(e.msg);
+      return (
+          chalk.red('Runtime error: ')
+        + chalk.yellowBright(
+            printErrorType(e.err.type) + ': ' + printErrorDetails(e.err)
+          )
+      );
   }
 }
 

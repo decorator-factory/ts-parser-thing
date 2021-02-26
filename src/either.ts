@@ -6,7 +6,7 @@ export const Err = <E, A>(err: E): Either<E, A> => ({err});
 export type ParserF<A> = (src: string) => Either<string, [A, string]>;
 
 
-export const either =
+export const dispatch =
   <E, A, B> (
     ea: Either<E, A>,
     onA: (a: A) => B,
@@ -22,14 +22,14 @@ export const map =
     ea: Either<E, A>,
     f: (a: A) => B,
   ): Either<E, B> =>
-    either(ea, a => Ok(f(a)), e => Err(e));
+    dispatch(ea, a => Ok(f(a)), e => Err(e));
 
 
 export const flatten =
   <E, A>(
     ea: Either<E, Either<E, A>>
   ): Either<E, A> =>
-    either(ea, a => a, e => Err(e));
+    dispatch(ea, a => a, e => Err(e));
 
 
 export const flatMap =
@@ -38,3 +38,17 @@ export const flatMap =
     f: (a: A) => Either<E, B>
   ): Either<E, B> =>
     flatten(map(ea, f));
+
+
+export const or =
+  <E, A>(
+    ifAllFail: E,
+    ...funs: (() => Either<E, A>)[]
+  ): Either<E, A> => {
+    for (const fun of funs) {
+      const result = fun();
+      if ('ok' in result)
+        return result;
+    }
+    return Err(ifAllFail);
+  }

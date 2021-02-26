@@ -1,17 +1,12 @@
 import { Expr, LamArg, LamT, Prio } from './ast';
 import { makeParser, unparse } from './parser';
+
+import { Ok, Err, Either } from '../either';
+import * as Ei from '../either';
+
 import { Map } from 'immutable';
 import { ColorHandle, identityColorHandle } from './color';
 
-
-const lookupName = (name: string, env: Env): Value => {
-  const rv = env.names.get(name);
-  if (rv !== undefined)
-    return rv;
-  if (env.parent === null)
-    throw new Error(`Name ${name} not found`);
-  return lookupName(name, env.parent);
-};
 
 const tryLookupName = (name: string, env: Env): Value | null => {
   const rv = env.names.get(name);
@@ -29,7 +24,7 @@ export type Env = {
 }
 
 
-export type NativeFn = (v: Value, e: Env) => Value;
+export type NativeFn = (v: Value, e: Env) => Partial<Value>;
 
 export type FunT = {fun: LamT, closure: Env};
 export type LazyName = string | (() => string);
@@ -49,45 +44,82 @@ export const Num = (num: number): Value => ({num});
 export const Bool = (bool: boolean): Value => ({bool});
 export const Table = (table: Map<string, Value>): Value => ({table});
 export const Fun = (fun: LamT, closure: Env): Value => ({fun, closure});
-export const Native = (name: LazyName, native: (v: Value, e: Env) => Value): Value => ({name, native});
+export const Native = (name: LazyName, native: (v: Value, e: Env) => Partial<Value>): Value => ({name, native});
+export const NativeOk = (name: LazyName, fn: (v: Value, e: Env) => Value): Value => ({name, native: (v, e) => Ok(fn(v, e))});
 
 
-export const asNum = (v: Value): number => {
+export type RuntimeError =
+  | {type: 'unexpectedType', details: {expected: string, got: Value}}
+  | {type: 'missingKey', details: {key: string}}
+  | {type: 'undefinedName', details: {name: string}}
+  ;
+export const UnexpectedType =
+  (expected: string, got: Value): RuntimeError => ({
+    type: 'unexpectedType', details: {expected, got}
+  });
+export const MissingKey =
+  (key: string): RuntimeError => ({
+    type: 'missingKey', details: {key}
+  });
+export const UndefinedName =
+  (name: string): RuntimeError => ({
+    type: 'undefinedName', details: {name}
+  });
+
+
+export const renderRuntimeError = (err: RuntimeError): Value => {
+  const details: any =
+    (err.type === 'unexpectedType')
+    ? {expected: Str(err.details.expected), got: err.details.got}
+    : (err.type === 'missingKey')
+    ? {key: Str(err.details.key)}
+    : {name: Str(err.details.name)};
+  return Table(Map({
+    error: Str(err.type),
+    details: Table(Map(details))
+  }));
+};
+
+
+export type Partial<A> = Either<RuntimeError, A>;
+
+
+export const asNum = (v: Value): Partial<number> => {
   if (!('num' in v))
-    throw new Error(`Expected number, got ${prettyPrint(v)}`);
-  return v.num;
+    return Err(UnexpectedType('number', v));
+  return Ok(v.num);
 };
 
-export const asStr = (v: Value): string => {
+export const asStr = (v: Value): Partial<string> => {
   if (!('str' in v))
-    throw new Error(`Expected string, got ${prettyPrint(v)}`);
-  return v.str;
+    return Err(UnexpectedType('string', v));
+  return Ok(v.str);
 };
 
-export const asSymb = (v: Value): string => {
+export const asSymb = (v: Value): Partial<string> => {
   if (!('symbol' in v))
-    throw new Error(`Expected symbol, got ${prettyPrint(v)}`);
-  return v.symbol;
+    return Err(UnexpectedType('symbol', v));
+  return Ok(v.symbol);
 };
 
-export const asStrOrSymb = (v: Value): string => {
+export const asStrOrSymb = (v: Value): Partial<string> => {
   if ('str' in v)
-    return v.str;
+    return Ok(v.str);
   if ('symbol' in v)
-    return v.symbol;
-  throw new Error(`Expected string or symbol, got ${prettyPrint(v)}`);
+    return Ok(v.symbol);
+  return Err(UnexpectedType('string|symbol', v));
 };
 
-export const asTable = (v: Value): Map<string, Value> => {
+export const asTable = (v: Value): Partial<Map<string, Value>> => {
   if (!('table' in v))
-    throw new Error(`Expected table, got ${prettyPrint(v)}`);
-  return v.table;
+    return Err(UnexpectedType('table', v));
+  return Ok(v.table);
 };
 
-export const asFun = (v: Value): FunT => {
+export const asFun = (v: Value): Partial<FunT> => {
   if (!('fun' in v))
-    throw new Error(`Expected function, got ${prettyPrint(v)}`);
-  return v;
+    return Err(UnexpectedType('function', v));
+  return Ok(v);
 };
 
 
@@ -140,28 +172,46 @@ export const prettyPrint = (v: Value, col: ColorHandle = identityColorHandle, de
 };
 
 
-export const interpret = (expr: Expr, env: Env): Value => {
+export const interpret = (expr: Expr, env: Env): Partial<Value> => {
   switch (expr.tag) {
     case 'num':
-      return Num(expr.value);
+      return Ok(Num(expr.value));
 
     case 'str':
-      return Str(expr.value);
+      return Ok(Str(expr.value));
 
     case 'symbol':
-      return Symbol(expr.value);
+      return Ok(Symbol(expr.value));
 
-    case 'table':
-      return Table(Map(expr.pairs.map(([k, subexpr]) => [k, interpret(subexpr, env)])));
+    case 'table': {
+      const rv: [string, Value][] = [];
+      for (const [k, subexpr] of expr.pairs) {
+        const subresult = interpret(subexpr, env);
+        if ('err' in subresult)
+          return subresult;
+        rv.push([k, subresult.ok]);
+      }
+      return Ok(Table(Map(rv)));
+    }
 
-    case 'name':
-      return lookupName(expr.name, env);
+    case 'name': {
+      const result = tryLookupName(expr.name, env);
+      if (result === null)
+        return Err(UndefinedName(expr.name));
+      return Ok(result);
+    };
 
     case 'app':
-      return applyFunction(interpret(expr.fun, env), interpret(expr.arg, env), env);
+      return Ei.flatMap(
+        interpret(expr.fun, env),
+        fun => Ei.flatMap(
+          interpret(expr.arg, env),
+          arg => applyFunction(fun, arg, env)
+        )
+      );
 
     case 'lam':
-      return Fun(expr, env);
+      return Ok(Fun(expr, env));
 
     case 'ite':
       return ifThenElse(expr.if, expr.then, expr.else, env);
@@ -170,55 +220,66 @@ export const interpret = (expr: Expr, env: Env): Value => {
 };
 
 
-const ifThenElse = (ifExpr: Expr, thenExpr: Expr, elseExpr: Expr, env: Env): Value => {
+const ifThenElse = (ifExpr: Expr, thenExpr: Expr, elseExpr: Expr, env: Env): Partial<Value> => {
   const condition = interpret(ifExpr, env);
-  if (!('bool' in condition))
-    throw new Error(`A condition must be a boolean, got ${prettyPrint(condition)}`);
+  if ('err' in condition)
+    return condition;
+  if (!('bool' in condition.ok))
+    return Err(UnexpectedType('boolean', condition.ok));
 
   return interpret(
-    condition.bool ? thenExpr : elseExpr,
+    condition.ok.bool ? thenExpr : elseExpr,
     env
   );
 };
 
 
-export const bindNames = (declaration: LamArg, value: Value, env: Env): Map<string, Value> => {
+export const bindNames = (declaration: LamArg, argument: Value, env: Env): Partial<[string, Value][]> => {
   if ('single' in declaration)
-    return Map({[declaration.single]: value});
+    return Ok([[declaration.single, argument]]);
 
-  return declaration.table.reduce(
-    (acc, [src, target]) =>
-      acc.concat(bindNames(
-        target,
-        applyFunction(value, Symbol(src), env),
-        env
-      )),
-    Map<string, Value>()
-  );
+  const rv: [string, Value][] = [];
+
+  for (const [src, target] of declaration.table) {
+    const newBindings =
+      Ei.flatMap(
+        applyFunction(argument, Symbol(src), env),
+        subBinding => bindNames(target, subBinding, env)
+      );
+    if ('err' in newBindings)
+      return newBindings;
+    rv.push(...newBindings.ok);
+  }
+
+  return Ok(rv);
 }
 
 
-export const applyFunction = (fun: Value, arg: Value, env: Env): Value => {
+export const applyFunction = (fun: Value, arg: Value, env: Env): Partial<Value> => {
   if ('native' in fun)
     return fun.native(arg, env);
 
   if ('fun' in fun)
-    return interpret(
-      fun.fun.expr,
-      {
-        parent: fun.closure,
-        names: bindNames(fun.fun.arg, arg, env)
-      }
+    return Ei.flatMap(
+      bindNames(fun.fun.arg, arg, env),
+      boundNames =>
+        interpret(
+          fun.fun.expr,
+          {
+            parent: fun.closure,
+            names: Map(boundNames),
+          }
+        )
     );
 
   if ('table' in fun) {
     if (!('symbol' in arg))
-      throw new Error(`Cannot index a map ${prettyPrint(fun)} with ${prettyPrint(arg)}`);
+      return Err(UnexpectedType('symbol', arg));
     const rv = fun.table.get(arg.symbol);
     if (rv === undefined)
-      throw new Error(`Key ${arg.symbol} not found in ${prettyPrint(fun)}`);
-    return rv;
+      return Err(MissingKey(arg.symbol));
+    return Ok(rv);
   }
 
-  throw new Error(`Trying to apply ${prettyPrint(fun)}, which isn't a function`);
+  return Err(UnexpectedType('table|function|native', fun));
 };

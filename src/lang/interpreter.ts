@@ -12,16 +12,24 @@ import {
   FunT,
   interpret,
   Native,
+  NativeOk,
   Num,
+  Partial,
   prettyPrint,
+  renderRuntimeError,
+  RuntimeError,
   Str,
+  Symbol,
   Table,
   Value,
 } from "./runtime";
 import { Map } from "immutable";
 import { lex, Tok } from "./lexer";
 import { TokenParser, TokenStream } from "../language";
+
 import { Either, Err, Ok } from "../either";
+import * as Ei from '../either';
+
 
 
 const DEFAULT_PARSER_OPTIONS = {
@@ -73,7 +81,7 @@ export class StatefulParser {
 export type LangError =
   | { type: 'lexError', msg: string }
   | { type: 'parseError', msg: string }
-  | { type: 'runtimeError', msg: string }
+  | { type: 'runtimeError', err: RuntimeError }
   ;
 
 export class Interpreter {
@@ -92,11 +100,10 @@ export class Interpreter {
   }
 
   public runAst(expr: Expr): Either<LangError, Value> {
-    try {
-      return Ok(interpret(expr, this.env));
-    } catch (e) {
-      return Err({ type: 'runtimeError', msg: `${e}` });
-    }
+    const rv = interpret(expr, this.env);
+    if ('ok' in rv)
+      return Ok(rv.ok);
+    return Err({ type: 'runtimeError', err: rv.err });
   }
 
   public runLine(line: string): Either<LangError, Value> {
@@ -140,7 +147,11 @@ export class Interpreter {
 const compose = (f1: Value, f2: Value): Value =>
   Native(
     `(${prettyPrint(f2)} >> ${prettyPrint(f1)})`,
-    (arg: Value, env: Env) => applyFunction(f1, applyFunction(f2, arg, env), env)
+    (arg: Value, env: Env) =>
+      Ei.flatMap(
+        applyFunction(f2, arg, env),
+        x2 => applyFunction(f1, x2, env)
+      )
   );
 
 
@@ -178,28 +189,35 @@ const _dumpEnv = (env: Env, depth: number = 0) => {
 const _binOp =
 <A, B>(
   name: string,
-  first: (a: Value) => A,
-  second: (b: Value) => B,
-  f: (a: A, b: B, env: Env) => Value
+  first: (a: Value) => Partial<A>,
+  second: (b: Value) => Partial<B>,
+  f: (a: A, b: B, env: Env) => Partial<Value>
 ): Value =>
-  Native(
+  NativeOk(
     `(${name})`,
     a => Native(
       () =>`(${prettyPrint(a)} ${name})`,
-      (b, env) => f(first(a), second(b), env)
+      (b, env) =>
+        Ei.flatMap(
+          first(a),
+          parsedA => Ei.flatMap(
+            second(b),
+            parsedB => f(parsedA, parsedB, env)
+          )
+        )
     )
   );
 
 
 const _binOpId = (
   name: string,
-  f: (a: Value, b: Value, env: Env) => Value
+  f: (a: Value, b: Value, env: Env) => Partial<Value>
 ): Value =>
-  _binOp(name, a=>a, b=>b, f);
+  _binOp(name, Ok, Ok, f);
 
 
 const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
-  'log': Native(
+  'log': NativeOk(
     'IO.log',
     s => {
       console.log(asStr(s));
@@ -207,7 +225,7 @@ const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
     }
   ),
 
-  'debug': Native(
+  'debug': NativeOk(
     'IO.debug',
     a => {
       console.log(prettyPrint(a));
@@ -216,42 +234,34 @@ const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
 
   'define': Native(
     'IO.define',
-    s => {
-      h.deleteName(asStrOrSymb(s));
-      return Native(
-        `(IO.define ${prettyPrint(s)})`,
-        v => {
-          h.setName(asStrOrSymb(s), v);
-          return v;
+    s =>
+      Ei.map(
+        asStrOrSymb(s),
+        varName => {
+          h.deleteName(varName);
+          return NativeOk(
+            `(IO.define ${prettyPrint(s)})`,
+            varValue => { h.setName(varName, varValue); return varValue; }
+          );
         }
-      );
-    }
+      )
   ),
 
   'forget': Native(
     'IO.forget',
-    s => {
-      h.deleteName(asStrOrSymb(s));
-      return unit;
-    }
+    s => Ei.map(asStrOrSymb(s), varName => { h.deleteName(varName); return unit; })
   ),
 
-  'try': Native(
+  'try': NativeOk(
     'IO.try',
-    (fn, env) => {
-      try {
-        return Table(Map({
-          ok: applyFunction(fn, unit, env)
-        }));
-      } catch (e) {
-        return Table(Map({
-          error: Str(`${e}`)
-        }));
-      }
-    }
+    (fn, env) => Ei.dispatch(
+      applyFunction(fn, unit, env),
+      ok => Table(Map({ok})),
+      renderRuntimeError
+    )
   ),
 
-  'locals': Native(
+  'locals': NativeOk(
     'IO.locals',
     (_, env) => {
       _dumpEnv(env);
@@ -259,7 +269,7 @@ const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
     }
   ),
 
-  'exit': Native(
+  'exit': NativeOk(
     'IO.exit',
     () => {
       h.exit();
@@ -270,64 +280,43 @@ const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
 
 
 const ModuleNum = _makeModule("Num", Map({
-  '=': _binOp('=', asNum, asNum, (a, b) => Bool(a === b)),
+  '=': _binOp('=', asNum, asNum, (a, b) => Ok(Bool(a === b))),
 }));
 
 
 const ModuleStr = _makeModule("Str", Map({
-  '=': _binOp('=', asStr, asStr, (a, b) => Bool(a === b)),
+  '=': _binOp('=', asStr, asStr, (a, b) => Ok(Bool(a === b))),
 }));
 
 
 const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
 
-  // const _fallback = Native(
-  //   '(|?)',
-  //   tableV => Native(
-  //     () => `(${prettyPrint(tableV)} |?)`,
-  //     (fallbackV) => Native(
-  //       () => `(${prettyPrint(tableV)} |? ${prettyPrint(fallbackV)})`,
-  //       (key, env) => {
-  //         if (!('table' in tableV))
-  //           return applyFunction(tableV, key, env);
-  //         const table = asTable(tableV);
-  //         if (!('symbol' in key))
-  //           return applyFunction(fallbackV, key, env);
-  //         const rv = table.get(key.symbol);
-  //         if (rv === undefined)
-  //           return applyFunction(fallbackV, key, env);
-  //         return rv;
-  //       }
-  //     )
-  //   ));
-
-  const _fallback = _binOpId('|?', (tableV, fallbackV) =>
-    Native(
-      () => `(${prettyPrint(tableV)} |? ${prettyPrint(fallbackV)})`,
+  const _fallback = _binOpId('|?', (primaryV, fallbackV) =>
+    Ok(Native(
+      () => `(${prettyPrint(primaryV)} |? ${prettyPrint(fallbackV)})`,
       (key, env) => {
-        if (!('table' in tableV))
-          return applyFunction(tableV, key, env);
-        const table = asTable(tableV);
-        if (!('symbol' in key))
-          return applyFunction(fallbackV, key, env);
-        const rv = table.get(key.symbol);
-        if (rv === undefined)
-          return applyFunction(fallbackV, key, env);
-        return rv;
+        const primaryResult = applyFunction(primaryV, key, env);
+        if ('ok' in primaryResult)
+          return primaryResult;
+
+        const {err} = primaryResult;
+        if (err.type !== 'missingKey')
+          return Err(err);
+        return applyFunction(fallbackV, key, env);
       }
-    )
+    ))
   );
 
   return {
     parent,
     names: Map({
-      '+': _binOp('+', asNum, asNum, (a, b) => Num(a + b)),
-      '-': _binOp('-', asNum, asNum, (a, b) => Num(a - b)),
-      '*': _binOp('*', asNum, asNum, (a, b) => Num(a * b)),
-      '^': _binOp('^', asNum, asNum, (a, b) => Num(Math.pow(a, b))),
-      '++': _binOp('-', asStr, asStr, (a, b) => Str(a + b)),
-      '<<': _binOpId('<<', compose),
-      '>>': _binOpId('>>', (a, b) => compose(b, a)),
+      '+': _binOp('+', asNum, asNum, (a, b) => Ok(Num(a + b))),
+      '-': _binOp('-', asNum, asNum, (a, b) => Ok(Num(a - b))),
+      '*': _binOp('*', asNum, asNum, (a, b) => Ok(Num(a * b))),
+      '^': _binOp('^', asNum, asNum, (a, b) => Ok(Num(Math.pow(a, b)))),
+      '++': _binOp('-', asStr, asStr, (a, b) => Ok(Str(a + b))),
+      '<<': _binOpId('<<', (a, b) => Ok(compose(a, b))),
+      '>>': _binOpId('>>', (a, b) => Ok(compose(b, a))),
       '|>': _binOpId('|>', (a, f, env) => applyFunction(f, a, env)),
       '$': _binOpId('$', (f, a, env) => applyFunction(f, a, env)),
 
@@ -341,27 +330,27 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
       'Str': ModuleStr,
       'IO': ModuleIO(h),
 
-      'given': Native(
-        'given',
-        namesV => Native(
-          () => `(given ${prettyPrint(namesV)})`,
-          (funV, env) => {
-            const table = asTable(namesV);
-            const fun = asFun(funV);
+      // 'given': Native(
+      //   'given',
+      //   namesV => Native(
+      //     () => `(given ${prettyPrint(namesV)})`,
+      //     (funV, env) => {
+      //       const table = asTable(namesV);
+      //       const fun = asFun(funV);
 
-            const newClosure: Env = {
-              parent: fun.closure,
-              names: table
-            };
+      //       const newClosure: Env = {
+      //         parent: fun.closure,
+      //         names: table
+      //       };
 
-            const newFun: FunT = {
-              fun: fun.fun,
-              closure: newClosure
-            };
-            return applyFunction(newFun, unit, env);
-          }
-        )
-      )
+      //       const newFun: FunT = {
+      //         fun: fun.fun,
+      //         closure: newClosure
+      //       };
+      //       return applyFunction(newFun, unit, env);
+      //     }
+      //   )
+      // )
     })
   };
 };
