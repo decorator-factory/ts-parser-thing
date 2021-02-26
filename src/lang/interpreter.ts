@@ -19,7 +19,6 @@ import {
   Value,
 } from "./runtime";
 import { Map } from "immutable";
-import { Parser } from "../parser";
 import { lex, Tok } from "./lexer";
 import { TokenParser, TokenStream } from "../language";
 import { Either, Err, Ok } from "../either";
@@ -36,6 +35,7 @@ const DEFAULT_PARSER_OPTIONS = {
     '>>': Prio(3, 'left'),
     '|>': Prio(2, 'left'),
     '|?': Prio(3, 'right'),
+    '$': Prio(1, 'left'),
   },
   backtickPriority: Prio(20, 'right'),
   defaultPriority: Prio(5, 'left'),
@@ -202,7 +202,7 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
       )
     ));
 
-  const ioFunctions = Table(Map({
+  const ioFunctions = Map({
     'log': Native(
       'IO.log',
       s => {
@@ -315,30 +315,67 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
         }
       )
     )
-  }));
+  });
 
-  // const numFunctions = Table(Map({
-  //   '='
-  // }));
+  const _binOp =
+    <A, B>(
+      name: string,
+      first: (a: Value) => A,
+      second: (b: Value) => B,
+      f: (a: A, b: B, env: Env) => Value
+    ): Value =>
+      Native(
+        `(${name})`,
+        a => Native(
+          () =>`(${prettyPrint(a)} ${name})`,
+          (b, env) => f(first(a), second(b), env)
+        )
+      );
+
+  const _binOpId = (
+      name: string,
+      f: (a: Value, b: Value, env: Env) => Value
+    ): Value =>
+      _binOp(name, a=>a, b=>b, f);
+
+  const _makeModule = (
+      name: string,
+      table: Map<string, Value>
+    ) => {
+      const tableV = Table(table.set('__table__', Table(table)));
+      return Native(name, (key, env) => applyFunction(tableV, key, env))
+    };
+
+  const numFunctions = Map({
+    '=': _binOp('=', asNum, asNum, (a, b) => Bool(a === b)),
+  });
+
+  const strFunctions = Map({
+    '=': _binOp('=', asStr, asStr, (a, b) => Bool(a === b)),
+  });
 
   return {
     parent,
     names: Map({
-      '+': Native('(+)', a => Native(`(${prettyPrint(a)} +)`, b => Num(asNum(a) + asNum(b)))),
-      '-': Native('(-)', a => Native(`(${prettyPrint(a)} -)`, b => Num(asNum(a) - asNum(b)))),
-      '*': Native('(*)', a => Native(`(${prettyPrint(a)} *)`, b => Num(asNum(a) * asNum(b)))),
-      '^': Native('(^)', a => Native(`(${prettyPrint(a)} ^)`, b => Num(Math.pow(asNum(a), asNum(b))))),
-      '++': Native('(++)', a => Native(() => `(${prettyPrint(a)} ++)`, b => Str(asStr(a) + asStr(b)))),
-      '<<': Native('(<<)', a => Native(() => `(${prettyPrint(a)} <<)`, b => compose(a, b))),
-      '>>': Native('(>>)', a => Native(() => `(${prettyPrint(a)} >>)`, b => compose(b, a))),
-      '|>': Native('(|>)', a => Native(() => `(${prettyPrint(a)} |>)`, (f, env) => applyFunction(f, a, env))),
+      '+': _binOp('+', asNum, asNum, (a, b) => Num(a + b)),
+      '-': _binOp('-', asNum, asNum, (a, b) => Num(a - b)),
+      '*': _binOp('*', asNum, asNum, (a, b) => Num(a * b)),
+      '^': _binOp('^', asNum, asNum, (a, b) => Num(Math.pow(a, b))),
+      '++': _binOp('-', asStr, asStr, (a, b) => Str(a + b)),
+      '<<': _binOpId('<<', compose),
+      '>>': _binOpId('>>', (a, b) => compose(b, a)),
+      '|>': _binOpId('|>', (a, f, env) => applyFunction(f, a, env)),
+      '$': _binOpId('$', (f, a, env) => applyFunction(f, a, env)),
+
       'true': Bool(true),
       'false': Bool(false),
 
       'fallback': _fallback,
       '|?': _fallback,
 
-      'IO': Native('IO', (key, env) => applyFunction(ioFunctions, key, env)),
+      'Num': _makeModule('Num', numFunctions),
+      'Str': _makeModule('Str', strFunctions),
+      'IO': _makeModule('IO', ioFunctions),
 
       'given': Native(
         'given',
