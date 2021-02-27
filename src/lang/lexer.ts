@@ -1,4 +1,5 @@
 import {TokenStream} from '../language';
+import { ColorHandle } from './color';
 
 export type Tok =
   | 'name'
@@ -68,3 +69,40 @@ export const lex = (src: string): TokenStream<Tok> => {
   }
   return tokens;
 };
+
+
+// @ts-ignore
+const tokenColor = (tokenType: Tok): keyof ColorHandle | null => ({
+  'if': 'keyword',
+  'then': 'keyword',
+  'else': 'keyword',
+  'ws': null,
+  'lp': null,
+  'rp': null,
+  'lsq': 'bracket',
+  'rsq': 'bracket',
+  'lbr': 'brace',
+  'rbr': 'brace',
+  'col': null,
+  'comma': null,
+  'name': 'name',
+  'dot': 'symbol',
+  'num': 'num',
+  'op': 'keyword',
+  'backtick': 'keyword',
+  'string1': 'str',
+  'string2': 'str'
+}[tokenType]);
+
+
+const _highlightGen = function* (code: string, h: ColorHandle) {
+  for (const token of lex(code)){
+    const col = tokenColor(token.type);
+    if (col === null)
+      yield token.content;
+    else
+      yield h[col](token.content);
+  }
+};
+
+export const highlightCode = (code: string, h: ColorHandle): string => [..._highlightGen(code, h)].join('');

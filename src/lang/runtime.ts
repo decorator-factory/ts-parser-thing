@@ -283,3 +283,55 @@ export const applyFunction = (fun: Value, arg: Value, env: Env): Partial<Value> 
 
   return Err(UnexpectedType('table|function|native', fun));
 };
+
+
+export const computeDiff = (e: Value, a: Value): string | null => {
+  if ('str' in e)
+    return 'str' in a
+      ? (e.str === a.str ? null : `expected ${prettyPrint(e)}, got ${prettyPrint(a)}`)
+      : `expected string, got ${prettyPrint(a)}`;
+
+  if ('num' in e)
+    return 'num' in a
+    ? (e.num === a.num ? null : `expected ${e.num}, got ${a.num}`)
+    : `expected number, got ${prettyPrint(a)}`;
+
+  if ('symbol' in e)
+    return 'symbol' in a
+      ? (e.symbol === a.symbol ? null : `expected ${prettyPrint(e)}, got ${prettyPrint(a)}`)
+      : `expected symbol, got ${prettyPrint(a)}`;
+
+  if ('bool' in e)
+    return 'bool' in a
+      ? (e.bool === a.bool ? null : `expected ${prettyPrint(e)}, got ${prettyPrint(a)}`)
+      : `expected bool, got ${prettyPrint(a)}`;
+
+  if ('table' in e) {
+    if (!('table' in a))
+      return `expected table, got ${prettyPrint(a)}`;
+
+    const differences: [string, string][] = [];
+
+    for (const [k, ve] of e.table.entries()) {
+      const va = a.table.get(k);
+      if (va === undefined) {
+        differences.push([k, `missing key ${k}`])
+      } else {
+        const subDiff = computeDiff(va, ve);
+        if (subDiff !== null)
+          differences.push([k, subDiff])
+      }
+    }
+
+    for (const k of a.table.keys())
+      if (!e.table.has(k))
+        differences.push([k, `extra key ${k}`])
+
+    if (differences.length === 0)
+      return null;
+
+    return '[' + differences.map(([k, msg]) => `${k}: ${msg}`).join(', ') + ']';
+  }
+
+  throw new Error(`Cannot expect a function ${prettyPrint(e)}`);
+}
