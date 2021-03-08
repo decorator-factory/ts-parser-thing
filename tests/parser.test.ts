@@ -5,7 +5,7 @@ describe('Parser for any single character', () => {
   const anyChar: Parser<string, string> =
     parser(src =>
       src === ''
-      ? {err: 'Empty string'}
+      ? {err: {recoverable: true, msg: 'Empty string'}}
       : {ok: [src[0], src.slice(1)]}
     );
 

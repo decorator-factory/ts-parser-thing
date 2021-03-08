@@ -1,8 +1,8 @@
-import { Either, dispatch, Ok, Err } from './either';
+import { Either, dispatch, Ok, Err, ParseError } from './either';
 import * as Ei from './either';
 
 export {Either, dispatch as either, Ok, Err, Ei}
-export type ParserF<S, A> = (src: S) => Either<string, [A, S]>;
+export type ParserF<S, A> = (src: S) => Either<ParseError, [A, S]>;
 
 
 export class Parser<S, A> {
@@ -41,6 +41,10 @@ export class Parser<S, A> {
     return this.flatMap(a => other.map(_ => a))
   }
 
+  orBail(msg: string): Parser<S, any> {
+    return this.or( parser(_ => ({err: {recoverable: false, msg}})) );
+  }
+
   lookAhead(): Parser<S, A>{
     return parser(src => {
       const ea = this.parse(src);
@@ -68,6 +72,8 @@ export class Parser<S, A> {
       const ea = this.parse(src);
       if ('ok' in ea)
         return ea;
+      if (!ea.err.recoverable)
+        return ea;
       const eb = other.parse(src);
       return eb
     })
@@ -78,6 +84,8 @@ export class Parser<S, A> {
     return parser(src => {
       const ea = this.parse(src);
       if ('ok' in ea)
+        return ea;
+      if (!ea.err.recoverable)
         return ea;
       const eb = other().parse(src);
       return eb

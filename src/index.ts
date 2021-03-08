@@ -115,8 +115,13 @@ const main = () => {
   rl.setPrompt(formatPrompt());
   prompt();
   rl.on('line', input => {
-    if (input.trim() !== '')
-      runCode(interpreter, input);
+    if (input.trim() !== '') {
+      const result = runCode(interpreter, input);
+      if ('err' in result)
+        console.log(result.err);
+      else
+        console.log(prettyPrint(result.ok, colors));
+    }
     prompt();
   });
 };

@@ -22,6 +22,24 @@ const paragraph = async (h: TutorialHandle, ...lines: string[]): Promise<void> =
 }
 
 
+// ((h: TutorialHandle) => Promise<void>)
+const parseTutorial = (source: string) => {
+  const lines = source.split('\n');
+
+  const currentParagraph = [];
+  const commands: ((h: TutorialHandle) => Promise<any>)[] = [];
+
+  const callbacks = [
+    ['PROMPT', (s: string) => { commands.push( async h => h.prompt() ) }],
+    ['PROMPT', (s: string) => { commands.push( async h => h.prompt() ) }],
+  ];
+
+  for (const line of lines) {
+
+  }
+};
+
+
 export const chapter0 = async (h: TutorialHandle) => {
   h.title("Chapter 0");
   h.subtitle("Welcome");

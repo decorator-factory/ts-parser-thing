@@ -3,7 +3,9 @@ export type Either<E, A> = Readonly<{ok: A} | {err: E}>;
 export const Ok = <E, A>(ok: A): Either<E, A> => ({ok});
 export const Err = <E, A>(err: E): Either<E, A> => ({err});
 
-export type ParserF<A> = (src: string) => Either<string, [A, string]>;
+export type ParseError = {recoverable: boolean, msg: string};
+
+export type ParserF<A> = (src: string) => Either<ParseError, [A, string]>;
 
 
 export const dispatch =

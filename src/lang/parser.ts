@@ -12,7 +12,7 @@ type P<A> = TokenParser<Tok, A>;
 
 
 const inParen = <A>(p: P<A>): P<A> =>
-  Comb.surroundedBy(L.oneOf('lp'), p, L.oneOf('rp'))
+  Comb.surroundedBy(L.oneOf('lp'), p, L.oneOf('rp').orBail('Unclosed ('))
 
 const trailingComma = (lookAheadFor: Tok) =>
  L.oneOf('comma').or(L.oneOf(lookAheadFor).lookAhead());
@@ -36,7 +36,11 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
 
   // Symbol
   const symbol =
-    L.oneOf('dot').then(_nameOrOp.map(Symbol));
+    L.oneOf('dot')
+    .then(
+      _nameOrOp.map(Symbol)
+      .orBail('Expected name or operator after dot')
+    );
 
   // Parenthesized expression
   const paren = inParen(exprParser);
@@ -54,7 +58,7 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
   const table = Comb.surroundedBy(
     L.oneOf('lsq'),
     _tableInnards,
-    L.oneOf('rsq'),
+    L.oneOf('rsq').orBail('Unclosed [ in table literal'),
   ).map(Table);
 
   // Argument pattern for lambda
@@ -73,7 +77,7 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
       .flatMap(_tableValue)
       .neht(trailingComma('rsq'))
     ),
-    L.oneOf('rsq'),
+    L.oneOf('rsq').orBail('Unclosed [ in table parameter'),
   )
 
   const _tablePat = _tablePatHelper.map(ArgTable);
@@ -94,15 +98,15 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
     Comb.surroundedBy(
       L.oneOf('lbr'),
       _lamArgs.flatMap(_lamBody),
-      L.oneOf('rbr')
+      L.oneOf('rbr').orBail('Unclosed { in lambda parameter'),
     )
 
   // Conditional
   const ite = Comb.pair(
-    L.oneOf('if').then(exprParser),
+    L.oneOf('if').then(exprParser.orBail('Expected expression after `if`')),
     Comb.pair(
-      L.oneOf('then').then(exprParser),
-      L.oneOf('else').then(exprParser)
+      L.oneOf('then').orBail('Expected `then`').then(exprParser),
+      L.oneOf('else').orBail('Expected `else`').then(exprParser)
     )
   ).map(([ifE, [thenE, elseE]]) => IfThenElse(ifE, thenE, elseE));
 
@@ -123,7 +127,7 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
   // Operator section
   const _op =
     L.reading('op', Name)
-    .or(L.oneOf('backtick').then(L.reading('name', Name)).neht(L.oneOf('backtick')));
+    .or(L.oneOf('backtick').then(L.reading('name', Name)).neht(L.oneOf('backtick').orBail('Unclosed `')));
 
   const _leftSection = // (+ 1)
     inParen(Comb.pair(_op, atomic))
@@ -141,7 +145,7 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
   const opSection = _leftSection.or(_rightSection).or(_bareOp);
 
   const application =
-    Comb.manyAtLeast(atomic, 1, 'Malformed or ambiguous function application')
+    Comb.manyAtLeast(atomic, 1, 'Unexpected end of input')
         .map(([first, ...rest]) => rest.reduce(App, first));
 
   // Infix operator parser
@@ -153,7 +157,7 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
   const _backtickInfixExpr =
     L.oneOf('backtick')
     .then(exprParser.map<Op>(expr => ({type: 'expr', expr})))
-    .neht(L.oneOf('backtick'));
+    .neht(L.oneOf('backtick').orBail('Unclosed `'));
 
   const _infixOperator = _symbolInfixOp.or(_backtickInfixExpr);
 

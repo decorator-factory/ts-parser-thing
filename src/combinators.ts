@@ -17,9 +17,15 @@ export const always =
 
 export const fail =
   <S, A>(
-    message: string
+    msg: string
   ): Parser<S, A> =>
-    parser(_ => Err(message));
+    parser(_ => Err({recoverable: true, msg}));
+
+export const failUnrecoverable =
+  <S, A>(
+    msg: string
+  ): Parser<S, A> =>
+    parser(_ => Err({recoverable: false, msg}));
 
 export const concat =
   <S, AS extends any[], A>(

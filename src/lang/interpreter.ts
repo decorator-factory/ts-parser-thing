@@ -116,7 +116,7 @@ export class Interpreter {
 
     const parsedE = this.stParser.parse(tokens);
     if ('err' in parsedE)
-      return Err({ type: 'parseError', msg: parsedE.err });
+      return Err({ type: 'parseError', msg: parsedE.err.msg });
     const [expr, remainingTokens] = parsedE.ok;
     if (remainingTokens.length !== 0)
       return Err({ type: 'parseError', msg: 'unexpected end of input' });
