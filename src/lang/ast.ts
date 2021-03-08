@@ -1,7 +1,7 @@
 export type Expr =
   | {tag: 'name', name: string}
   | {tag: 'app', fun: Expr, arg: Expr}
-  | {tag: 'num', value: number}
+  | {tag: 'int', value: bigint}
   | {tag: 'str', value: string}
   | {tag: 'symbol', value: string}
   | {tag: 'table', pairs: [string, Expr][] }
@@ -47,9 +47,9 @@ export const Name =
   (name: string): Expr =>
     ({tag: 'name', name});
 
-export const Num =
-  (value: number): Expr =>
-    ({tag: 'num', value});
+export const Int =
+  (value: bigint): Expr =>
+    ({tag: 'int', value});
 
 export const Str =
 (value: string): Expr =>
@@ -91,7 +91,7 @@ const _getCapturedNames = (expr: Expr, exclude: string[]): string[] => {
         .concat(_getCapturedNames(expr.arg, exclude))
       );
 
-    case 'num':
+    case 'int':
       return [];
 
     case 'str':

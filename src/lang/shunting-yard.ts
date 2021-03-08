@@ -1,4 +1,4 @@
-import { Op, Ops, Expr, App, Name, Num, ParseOptions, Priority } from './ast';
+import { Op, Ops, Expr, App, Name, Int, ParseOptions, Priority } from './ast';
 
 
 const never = <T>(msg: string = 'This should never happen'): T => { throw new Error(msg) };

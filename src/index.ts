@@ -59,15 +59,12 @@ const colors = (() => {
     str: chalk.rgb(232, 221, 100),
     num: chalk.rgb(182, 106, 217),
     constant: chalk.bold.rgb(158, 59, 204),
-    native: chalk.rgb(63, 232, 125),
     name: chalk.rgb(210, 247, 231),
     keyword: chalk.bold.rgb(252, 38, 109),
 
-    brace: chalk.rgb(252, 197, 215),
-    bracket: chalk.rgb(219, 242, 255),
+    punctuation: chalk.rgb(252, 197, 215),
 
     arg: chalk.underline.rgb(158, 252, 86),
-    argBracket: chalk.rgb(127, 237, 43),
   };
 
 
@@ -76,12 +73,10 @@ const colors = (() => {
     str: chalk.yellowBright,
     num: chalk.magentaBright,
     constant: chalk.magenta,
-    native: chalk.cyanBright,
     name: chalk.whiteBright,
     keyword: chalk.red,
 
     arg: chalk.greenBright,
-    argBracket: chalk.green,
   };
 
   return chalk.level <= 2 ? colorsSimple : colorsRgb;

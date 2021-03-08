@@ -30,7 +30,7 @@ export type FunT = {fun: LamT, closure: Env};
 export type LazyName = string | (() => string);
 export type Value =
   | {str: string}
-  | {num: number}
+  | {int: bigint}
   | {symbol: string}
   | FunT
   | {native: NativeFn, name: LazyName}
@@ -40,7 +40,7 @@ export type Value =
 
 export const Str = (str: string): Value => ({str});
 export const Symbol = (symbol: string): Value => ({symbol});
-export const Num = (num: number): Value => ({num});
+export const Int = (num: bigint): Value => ({int: num});
 export const Bool = (bool: boolean): Value => ({bool});
 export const Table = (table: Map<string, Value>): Value => ({table});
 export const Fun = (fun: LamT, closure: Env): Value => ({fun, closure});
@@ -84,10 +84,10 @@ export const renderRuntimeError = (err: RuntimeError): Value => {
 export type Partial<A> = Either<RuntimeError, A>;
 
 
-export const asNum = (v: Value): Partial<number> => {
-  if (!('num' in v))
+export const asNum = (v: Value): Partial<bigint> => {
+  if (!('int' in v))
     return Err(UnexpectedType('number', v));
-  return Ok(v.num);
+  return Ok(v.int);
 };
 
 export const asStr = (v: Value): Partial<string> => {
@@ -125,7 +125,7 @@ export const asFun = (v: Value): Partial<FunT> => {
 
 export const envRepr = (env: Env, keys: string[], col: ColorHandle = identityColorHandle, depth: number = 0): string => {
   if (depth > 3)
-    return col.bracket('[') + '...' + col.bracket(']');
+    return col.punctuation('{') + '...' + col.punctuation('}');
 
   const lines: string[] = [];
   for (const key of keys){
@@ -133,7 +133,7 @@ export const envRepr = (env: Env, keys: string[], col: ColorHandle = identityCol
     const vs = v === null ? "?" : prettyPrint(v, col, depth+1);
     lines.push(`${key}: ${vs}`);
   }
-  return col.bracket('[') + lines.join(', ') + col.bracket(']');
+  return col.punctuation('{') + lines.join(', ') + col.punctuation('}');
 }
 
 
@@ -144,8 +144,8 @@ export const prettyPrint = (v: Value, col: ColorHandle = identityColorHandle, de
   if ('str' in v)
     return col.str(JSON.stringify(v.str));
 
-  else if ('num' in v)
-    return col.num(`${v.num}`);
+  else if ('int' in v)
+    return col.num(`${v.int}`.replace('n', ''));
 
   else if ('fun' in v)
     return (v.fun.capturedNames.length === 0)
@@ -153,29 +153,29 @@ export const prettyPrint = (v: Value, col: ColorHandle = identityColorHandle, de
       : `${unparse(v.fun, col, depth)} where ${envRepr(v.closure, v.fun.capturedNames, col, depth+1)}`;
 
   else if ('native' in v)
-    return col.native(typeof v.name === 'string' ? v.name : v.name());
+    return col.constant(typeof v.name === 'string' ? v.name : v.name());
 
   else if ('symbol' in v)
-    return col.symbol('.' + v.symbol);
+    return col.constant(':' + v.symbol);
 
   else if ('bool' in v)
     return col.constant(`${v.bool}`);
 
   else
     return v.table.size === 0
-      ? col.constant('[]')
+      ? col.constant('{}')
       : (
-        col.bracket('[')
+        col.punctuation('{')
         + [...v.table.entries()].map(([k, v]) => `${col.name(k)}: ${prettyPrint(v, col, depth + 1)}`).join(', ')
-        + col.bracket(']')
+        + col.punctuation('}')
       );
 };
 
 
 export const interpret = (expr: Expr, env: Env): Partial<Value> => {
   switch (expr.tag) {
-    case 'num':
-      return Ok(Num(expr.value));
+    case 'int':
+      return Ok(Int(expr.value));
 
     case 'str':
       return Ok(Str(expr.value));
@@ -291,9 +291,9 @@ export const computeDiff = (e: Value, a: Value): string | null => {
       ? (e.str === a.str ? null : `expected ${prettyPrint(e)}, got ${prettyPrint(a)}`)
       : `expected string, got ${prettyPrint(a)}`;
 
-  if ('num' in e)
-    return 'num' in a
-    ? (e.num === a.num ? null : `expected ${e.num}, got ${a.num}`)
+  if ('int' in e)
+    return 'int' in a
+    ? (e.int === a.int ? null : `expected ${prettyPrint(e)}, got ${prettyPrint(a)}`)
     : `expected number, got ${prettyPrint(a)}`;
 
   if ('symbol' in e)
@@ -330,7 +330,7 @@ export const computeDiff = (e: Value, a: Value): string | null => {
     if (differences.length === 0)
       return null;
 
-    return '[' + differences.map(([k, msg]) => `${k}: ${msg}`).join(', ') + ']';
+    return '{' + differences.map(([k, msg]) => `${k}: ${msg}`).join(', ') + '}';
   }
 
   throw new Error(`Cannot expect a function ${prettyPrint(e)}`);

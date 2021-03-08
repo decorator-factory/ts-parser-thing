@@ -1,6 +1,6 @@
 import { makeParser, unparse } from '../src/lang/parser'
 import { lex } from '../src/lang/lexer';
-import { Prio, App, Name, Num, Lam, Str, Table, IfThenElse, ArgSingle, ArgTable } from '../src/lang/ast';
+import { Prio, App, Name, Int, Lam, Str, Table, IfThenElse, ArgSingle, ArgTable } from '../src/lang/ast';
 import { consume } from '../src/language';
 import { expect } from 'chai';
 
@@ -45,7 +45,7 @@ describe('In this language', () => {
     expect(consume(parser, lex('1 + 2')))
       .to.have.property('ok')
       .that.deep.equals(
-        App(App(Name('+'), Num(1)), Num(2))
+        App(App(Name('+'), Int(1n)), Int(2n))
       )
   })
 
@@ -53,7 +53,7 @@ describe('In this language', () => {
     expect(consume(parser, lex('1 + 2 * 3')))
       .to.have.property('ok')
       .that.deep.equals(
-        App(App(Name('+'), Num(1)), App(App(Name('*'), Num(2)), Num(3)))
+        App(App(Name('+'), Int(1n)), App(App(Name('*'), Int(2n)), Int(3n)))
       )
   })
 
@@ -61,7 +61,7 @@ describe('In this language', () => {
     expect(consume(parser, lex('1 + a b * 3')))
       .to.have.property('ok')
       .that.deep.equals(
-        App(App(Name('+'), Num(1)), App(App(Name('*'), App(Name('a'), Name('b'))), Num(3)))
+        App(App(Name('+'), Int(1n)), App(App(Name('*'), App(Name('a'), Name('b'))), Int(3n)))
       )
   })
 
@@ -124,7 +124,7 @@ describe('In this language', () => {
               ['c', ArgSingle('c')],
             ])],
           ]),
-          Num(42)
+          Int(42n)
         )
       )
   })
@@ -159,7 +159,7 @@ describe('In this language', () => {
   it('an operator can be partially applied from the right', () => {
     expect(consume(parser, lex('(1 +)')))
       .to.have.property('ok')
-      .which.deep.equals(App(Name('+'), Num(1)))
+      .which.deep.equals(App(Name('+'), Int(1n)))
   })
 
   it('an operator can be partially applied from the left', () => {
@@ -184,13 +184,13 @@ describe('In this language', () => {
   it('maps are defined in square brackets', () => {
     expect(consume(parser, lex('[a: 1, b: "Hello"]')))
       .to.have.property('ok')
-      .which.deep.equals(Table([['a', Num(1)], ['b', Str("Hello")]]))
+      .which.deep.equals(Table([['a', Int(1n)], ['b', Str("Hello")]]))
   })
 
   it('an optional trailing comma is permitted in a map', () => {
     expect(consume(parser, lex('[a: 1, b: "Hello",]')))
       .to.have.property('ok')
-      .which.deep.equals(Table([['a', Num(1)], ['b', Str("Hello")]]))
+      .which.deep.equals(Table([['a', Int(1n)], ['b', Str("Hello")]]))
   })
 
   it('a conditional expression can be constructed', () => {

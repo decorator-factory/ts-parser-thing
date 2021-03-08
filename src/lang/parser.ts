@@ -1,7 +1,7 @@
 import { Lang, TokenParser } from '../language'
 import * as Comb from '../combinators'
 import { Tok } from './lexer'
-import { Op, Ops, Expr, ParseOptions, Lam, App, Name, Num, Str, Table, Symbol, IfThenElse, ArgSingle, LamArg, ArgTable, LamT } from './ast'
+import { Op, Ops, Expr, ParseOptions, Lam, App, Name, Int, Str, Table, Symbol, IfThenElse, ArgSingle, LamArg, ArgTable, LamT } from './ast'
 import { shuntingYard } from './shunting-yard'
 import { lex } from './lexer'
 import { ColorHandle, identityColorHandle } from './color';
@@ -29,17 +29,17 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
   const name = L.reading('name', Name);
 
   // Number
-  const num = L.reading('num', s => Num(parseInt(s)));
+  const num = L.reading('num', s => Int(BigInt(s)));
 
   // String
   const str = L.reading('string1', eval).or(L.reading('string2', eval)).map(Str);
 
   // Symbol
   const symbol =
-    L.oneOf('dot')
+    L.oneOf('col')
     .then(
       _nameOrOp.map(Symbol)
-      .orBail('Expected name or operator after dot')
+      .orBail('Expected name or operator after :')
     );
 
   // Parenthesized expression
@@ -53,12 +53,12 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
     );
 
   const _tableInnards =
-    Comb.many(_tableRecord.neht(trailingComma('rsq')))
+    Comb.many(_tableRecord.neht(trailingComma('rbr')))
 
   const table = Comb.surroundedBy(
-    L.oneOf('lsq'),
+    L.oneOf('lbr'),
     _tableInnards,
-    L.oneOf('rsq').orBail('Unclosed [ in table literal'),
+    L.oneOf('rbr').orBail('Unclosed [ in table literal'),
   ).map(Table);
 
   // Argument pattern for lambda
@@ -71,13 +71,13 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
     .or(Comb.always([target, ArgSingle(target)]));
 
   const _tablePatHelper: P<[string, LamArg][]> = Comb.surroundedBy(
-    L.oneOf('lsq'),
+    L.oneOf('lbr'),
     Comb.many(
       _nameOrOp
       .flatMap(_tableValue)
-      .neht(trailingComma('rsq'))
+      .neht(trailingComma('rbr'))
     ),
-    L.oneOf('rsq').orBail('Unclosed [ in table parameter'),
+    L.oneOf('rbr'),
   )
 
   const _tablePat = _tablePatHelper.map(ArgTable);
@@ -88,18 +88,14 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
   const _makeLambda = (argNames: LamArg[], expr: Expr): Expr =>
     argNames.reduceRight((acc, arg) => Lam(arg, acc), expr);
 
-  const _lamArgs = Comb.many(_lamArg);
+  const _lamArgs = Comb.many(_lamArg).neht(L.oneOf('dot'));
 
   const _lamBody =
     (args: LamArg[]) =>
-    L.oneOf('col').then(exprParser.map(expr => _makeLambda(args, expr)));
+    exprParser.map(expr => _makeLambda(args, expr));
 
   const lambda =
-    Comb.surroundedBy(
-      L.oneOf('lbr'),
-      _lamArgs.flatMap(_lamBody),
-      L.oneOf('rbr').orBail('Unclosed { in lambda parameter'),
-    )
+      _lamArgs.flatMap(_lamBody);
 
   // Conditional
   const ite = Comb.pair(
@@ -120,7 +116,6 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
     .or(name)
     .or(paren)
     .or(ite)
-    .or(lambda)
     .or(symbol)
     .or(table);
 
@@ -157,7 +152,7 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
   const _backtickInfixExpr =
     L.oneOf('backtick')
     .then(exprParser.map<Op>(expr => ({type: 'expr', expr})))
-    .neht(L.oneOf('backtick').orBail('Unclosed `'));
+    .neht(L.oneOf('backtick'));
 
   const _infixOperator = _symbolInfixOp.or(_backtickInfixExpr);
 
@@ -172,7 +167,7 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
   const opExpr = _operatorList.map(ops => shuntingYard(ops, options));
 
   // Entry point
-  const exprParser_ = opExpr;
+  const exprParser_ = lambda.or(opExpr);
 
   return [exprParser_, newOpts => {options = newOpts}];
 }
@@ -185,14 +180,14 @@ const unparseArg = (arg: LamArg, col: ColorHandle): string =>
   'single' in arg
   ? col.arg(arg.single)
   : (
-    col.argBracket('[')
+    col.arg('{')
     + arg.table.map(
         ([target, source]) =>
           'single' in source && source.single === target
           ? col.arg(target)
           : col.arg(target) + ': ' + unparseArg(source, col)
       ).join(', ')
-    + col.argBracket(']')
+    + col.arg('}')
   );
 
 const unparseApp = ({fun, arg}: {fun: Expr, arg: Expr}, col: ColorHandle): string => {
@@ -227,11 +222,11 @@ const unparseLam = (lam: LamT, col: ColorHandle): string => {
   }
   args.push(lam.arg);
   return (
-    col.brace('{')
+    col.punctuation('(')
     + args.map(e => unparseArg(e, col)).join(' ')
-    + ': '
+    + '. '
     + unparse(lam.expr, col)
-    + col.brace('}')
+    + col.punctuation(')')
   );
 }
 
@@ -241,13 +236,13 @@ export const unparse = (expr: Expr, col: ColorHandle = identityColorHandle, dept
 
   switch (expr.tag) {
     case 'name': return col.name(isIdentifier(expr.name) ? expr.name : `(${expr.name})`);
-    case 'num': return col.num(`${expr.value}`);
+    case 'int': return col.num(`${expr.value}`.replace('n', ''));
     case 'str': return col.str(JSON.stringify(expr.value));
-    case 'symbol': return col.symbol('.' + expr.value);
+    case 'symbol': return col.constant(':' + expr.value);
     case 'table': return (
-        col.bracket('[')
+        col.punctuation('{')
         + expr.pairs.map(([k, v]) => `${col.name(k)}: ${unparse(v, col, depth+1)}`).join(', ')
-        + col.bracket(']')
+        + col.punctuation('}')
       );
     case 'app': return unparseApp(expr, col);
     case 'lam': return unparseLam(expr, col);

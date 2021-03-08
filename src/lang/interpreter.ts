@@ -1,9 +1,9 @@
 import { Expr, ParseOptions, Prio, Priority } from "./ast";
-import { makeParser } from "./parser";
+import { makeParser, unparse } from "./parser";
 import {
   applyFunction,
   asFun,
-  asNum,
+  asNum as asInt,
   asStr,
   asStrOrSymb,
   asTable,
@@ -13,7 +13,7 @@ import {
   interpret,
   Native,
   NativeOk,
-  Num,
+  Int,
   Partial,
   prettyPrint,
   renderRuntimeError,
@@ -218,7 +218,7 @@ const _binOpId = (
 
 const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
   'log': NativeOk(
-    'IO.log',
+    'IO:log',
     s => {
       console.log(asStr(s));
       return unit;
@@ -226,21 +226,21 @@ const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
   ),
 
   'debug': NativeOk(
-    'IO.debug',
+    'IO:debug',
     a => {
       console.log(prettyPrint(a));
       return a;
     }),
 
   'define': Native(
-    'IO.define',
+    'IO:define',
     s =>
       Ei.map(
         asStrOrSymb(s),
         varName => {
           h.deleteName(varName);
           return NativeOk(
-            `(IO.define ${prettyPrint(s)})`,
+            `(IO:define ${prettyPrint(s)})`,
             varValue => { h.setName(varName, varValue); return varValue; }
           );
         }
@@ -248,12 +248,12 @@ const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
   ),
 
   'forget': Native(
-    'IO.forget',
+    'IO:forget',
     s => Ei.map(asStrOrSymb(s), varName => { h.deleteName(varName); return unit; })
   ),
 
   'try': NativeOk(
-    'IO.try',
+    'IO:try',
     (fn, env) => Ei.dispatch(
       applyFunction(fn, unit, env),
       ok => Table(Map({ok})),
@@ -262,7 +262,7 @@ const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
   ),
 
   'locals': NativeOk(
-    'IO.locals',
+    'IO:locals',
     (_, env) => {
       _dumpEnv(env);
       return unit;
@@ -270,7 +270,7 @@ const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
   ),
 
   'exit': NativeOk(
-    'IO.exit',
+    'IO:exit',
     () => {
       h.exit();
       return unit;
@@ -279,13 +279,13 @@ const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
 }));
 
 
-const ModuleNum = _makeModule("Num", Map({
-  '=': _binOp('=', asNum, asNum, (a, b) => Ok(Bool(a === b))),
-  '!=': _binOp('!=', asNum, asNum, (a, b) => Ok(Bool(a !== b))),
-  '<': _binOp('<', asNum, asNum, (a, b) => Ok(Bool(a < b))),
-  '>': _binOp('>', asNum, asNum, (a, b) => Ok(Bool(a > b))),
-  '>=': _binOp('>=', asNum, asNum, (a, b) => Ok(Bool(a >= b))),
-  '<=': _binOp('<=', asNum, asNum, (a, b) => Ok(Bool(a <= b))),
+const ModuleInt = _makeModule("Int", Map({
+  '=': _binOp('=', asInt, asInt, (a, b) => Ok(Bool(a === b))),
+  '!=': _binOp('!=', asInt, asInt, (a, b) => Ok(Bool(a !== b))),
+  '<': _binOp('<', asInt, asInt, (a, b) => Ok(Bool(a < b))),
+  '>': _binOp('>', asInt, asInt, (a, b) => Ok(Bool(a > b))),
+  '>=': _binOp('>=', asInt, asInt, (a, b) => Ok(Bool(a >= b))),
+  '<=': _binOp('<=', asInt, asInt, (a, b) => Ok(Bool(a <= b))),
 }));
 
 
@@ -318,10 +318,10 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
   return {
     parent,
     names: Map({
-      '+': _binOp('+', asNum, asNum, (a, b) => Ok(Num(a + b))),
-      '-': _binOp('-', asNum, asNum, (a, b) => Ok(Num(a - b))),
-      '*': _binOp('*', asNum, asNum, (a, b) => Ok(Num(a * b))),
-      '^': _binOp('^', asNum, asNum, (a, b) => Ok(Num(Math.pow(a, b)))),
+      '+': _binOp('+', asInt, asInt, (a, b) => Ok(Int(a + b))),
+      '-': _binOp('-', asInt, asInt, (a, b) => Ok(Int(a - b))),
+      '*': _binOp('*', asInt, asInt, (a, b) => Ok(Int(a * b))),
+      '^': _binOp('^', asInt, asInt, (a, b) => Ok(Int(a ** b))),
       '++': _binOp('-', asStr, asStr, (a, b) => Ok(Str(a + b))),
       '<<': _binOpId('<<', (a, b) => Ok(compose(a, b))),
       '>>': _binOpId('>>', (a, b) => Ok(compose(b, a))),
@@ -334,7 +334,7 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
       'fallback': _fallback,
       '|?': _fallback,
 
-      'Num': ModuleNum,
+      'Num': ModuleInt,
       'Str': ModuleStr,
       'IO': ModuleIO(h),
     })
