@@ -1,3 +1,4 @@
+import { ParseError } from './either';
 import { Parser, Ok, Err, parser } from './parser';
 
 
@@ -78,3 +79,10 @@ export const maybe =
     optional: Parser<S, A>
   ): Parser<S, null> =>
     optional.map(_ => null).or(always(null));
+
+export const guard =
+  <S>(
+    pred: (s: S) => boolean,
+    err: ParseError = {recoverable: true, msg: 'could not match predicate'},
+  ): Parser<S, null> =>
+    parser(src => pred(src) ? Ok([null, src]) : Err(err));
