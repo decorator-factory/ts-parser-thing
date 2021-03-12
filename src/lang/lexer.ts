@@ -21,6 +21,7 @@ export type Tok =
   | 'else'
   | 'dot'
   | 'ws'
+  | 'semicolon'
 
 const getGroup = (m: RegExpMatchArray) => {
   for (const [k, v] of Object.entries(m.groups || {}))
@@ -57,6 +58,7 @@ const re = makeRegexp(
   ['backtick',  /`/                            ],
   ['string1',   /'(?:\\.|[^'])*'/              ],
   ['string2',   /"(?:\\.|[^"])*"/              ],
+  ['semicolon', /;/                            ],
 );
 
 
@@ -86,6 +88,7 @@ const tokenColor = (tokenType: Tok): keyof ColorHandle | null => ({
   'lbr': 'punctuation',
   'rbr': 'punctuation',
   'col': 'punctuation',
+  'semicolon': 'punctuation',
   'comma': 'punctuation',
   'name': 'name',
   'dot': 'constant',
