@@ -251,12 +251,12 @@ const _binOpId = (
 
 
 const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
-  'log': NativeOk(
+  'log': Native(
     'IO:log',
-    s => {
-      console.log(asStr(s));
-      return unit;
-    }
+    sV => Ei.flatMap(asStr(sV), s => {
+      console.log(s);
+      return Ok(unit);
+    })
   ),
 
   'debug': NativeOk(

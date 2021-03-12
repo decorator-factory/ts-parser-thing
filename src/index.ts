@@ -5,7 +5,7 @@ import { ColorHandle, identityColorHandle } from './lang/color';
 import { highlightCode } from './lang/lexer';
 import chalk from 'chalk';
 import { Either, Err, Ok } from './either';
-import * as Ei from './either';
+import * as fs from 'fs';
 
 
 
@@ -43,8 +43,8 @@ const runCode = (() => {
     }
   };
 
-  return (interpreter: Interpreter, inputLine: string): Either<string, Value> => {
-    const result = interpreter.runLine(inputLine);
+  return (interpreter: Interpreter, sourceCode: string): Either<string, Value[]> => {
+    const result = interpreter.runMultiline(sourceCode);
     return 'ok' in result
       ? Ok(result.ok)
       : Err(printError(result.err));
@@ -116,15 +116,30 @@ const readEvalPrintLoop = () => {
       if ('err' in result)
         console.log(result.err);
       else
-        console.log(prettyPrint(result.ok, colors));
+        for (const v of result.ok)
+          console.log(prettyPrint(v, colors));
     }
     prompt();
   });
 };
 
 
+const simplyRunCode = (sourceCode: string) => {
+  const interpreter = new Interpreter(() => process.exit());
+  const result = runCode(interpreter, sourceCode);
+  if ('err' in result)
+    console.error(result.err);
+};
 
-if (process.argv.slice(-1)[0] === 'repl')
+
+if (process.argv.slice(-1)[0] === 'repl') {
   readEvalPrintLoop();
-else
-  console.log('Only the REPL is supported for now');
+} else if (process.argv.slice(-1)[0] === 'stdin') {
+  const STDIN_FD = 0;
+  const sourceCode = fs.readFileSync(STDIN_FD, 'utf-8');
+  simplyRunCode(sourceCode);
+} else if (process.argv.slice(-1)[0] === 'file') {
+
+} else {
+  console.log('Only `npm run repl`, `npm run stdin` and `npm run file` are supported for now');
+}
