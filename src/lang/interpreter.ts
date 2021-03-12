@@ -328,6 +328,7 @@ const ModuleStr = _makeModule("Str", Map({
   '!=': _binOp('!=', asStr, asStr, (a, b) => Ok(Bool(a !== b))),
   'lower?': Native('lower?', value => Ei.map(asStr(value), s => Bool(s.toLowerCase() === s))),
   'upper?': Native('upper?', value => Ei.map(asStr(value), s => Bool(s.toUpperCase() === s))),
+  'from': NativeOk('from', value => Str(prettyPrint(value))),
 }));
 
 
@@ -374,7 +375,7 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
       'fallback': _fallback,
       '|?': _fallback,
 
-      'Num': ModuleInt,
+      'Int': ModuleInt,
       'Str': ModuleStr,
 
       'IO': ModuleIO(h),
