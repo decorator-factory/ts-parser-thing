@@ -132,14 +132,18 @@ const simplyRunCode = (sourceCode: string) => {
 };
 
 
-if (process.argv.slice(-1)[0] === 'repl') {
+if (process.argv[2] === 'repl') {
   readEvalPrintLoop();
-} else if (process.argv.slice(-1)[0] === 'stdin') {
+} else if (process.argv[2] === 'stdin') {
   const STDIN_FD = 0;
   const sourceCode = fs.readFileSync(STDIN_FD, 'utf-8');
   simplyRunCode(sourceCode);
-} else if (process.argv.slice(-1)[0] === 'file') {
-
+} else if (process.argv[2] === 'file') {
+  const filename = process.argv[3];
+  if (!filename)
+    console.error('You must provide a filename');
+  const sourceCode = fs.readFileSync(filename, 'utf-8');
+  simplyRunCode(sourceCode);
 } else {
   console.log('Only `npm run repl`, `npm run stdin` and `npm run file` are supported for now');
 }
