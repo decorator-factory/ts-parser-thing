@@ -1,7 +1,7 @@
 import { Either, dispatch, Ok, Err, ParseError } from './either';
 import * as Ei from './either';
 
-export {Either, dispatch as either, Ok, Err, Ei}
+export {Either, dispatch, Ok, Err, Ei}
 export type ParserF<S, A> = (src: S) => Either<ParseError, [A, S]>;
 
 
@@ -12,6 +12,9 @@ export class Parser<S, A> {
     this.parse = parse;
   }
 
+  /**
+   * Keep the parsing the same, but apply a transformation to the result
+   */
   map<B>(f: (a: A) => B): Parser<S, B> {
     return parser(src => {
       const ea = this.parse(src);
@@ -22,6 +25,10 @@ export class Parser<S, A> {
     });
   }
 
+  /**
+   * Similarly to Array.prototype.flatMap or Promise.prototype.then,
+   * allows you to combine actions of the shape (A => Parser<S, B>)
+   */
   flatMap<B>(f: (a: A) => Parser<S, B>): Parser<S, B> {
     return parser(src => {
       const ea = this.parse(src);
@@ -33,18 +40,31 @@ export class Parser<S, A> {
     });
   }
 
+  /**
+   * Discard the result of the current parser and run the next one
+   */
   then<B>(other: Parser<S, B>): Parser<S, B> {
     return this.flatMap(_ => other);
   }
 
+  /**
+   * Run the next input, but keep the result of the initial one
+   */
   neht<B>(other: Parser<S, B>): Parser<S, A> {
     return this.flatMap(a => other.map(_ => a))
   }
 
+  /**
+   * If this parser fails to match, produce an unrecoverable error
+   */
   orBail(msg: string): Parser<S, any> {
     return this.or( parser(_ => ({err: {recoverable: false, msg}})) );
   }
 
+  /**
+   * Transform the parser in such a way that it doesn't consume
+   * the input, but still checks that it could've.
+   */
   lookAhead(): Parser<S, A>{
     return parser(src => {
       const ea = this.parse(src);
@@ -55,17 +75,11 @@ export class Parser<S, A> {
     });
   }
 
-  apply<B>(pf: Parser<S, (a: A) => B>): Parser<S, B> {
-    return parser(src => {
-      const ef = pf.parse(src);
-      if ('err' in ef)
-        return Err(ef.err);
-      const [f, rest] = ef.ok;
-      const ea = this.parse(rest);
-      return Ei.map(ea, ([a, s]) => [f(a), s]);
-    });
-  }
-
+  /**
+   * If this parser fails, attempt to use another one
+   * (at the same starting point, without the input
+   * consumed)
+   */
   or<B>(other: Parser<S, A>): Parser<S, A> {
     // @ts-ignore
     return parser(src => {
@@ -79,6 +93,9 @@ export class Parser<S, A> {
     })
   }
 
+  /**
+   * Like `or`, but accepts a parser factory instead of a parser
+   */
   orLazy<B>(other: () => Parser<S, B>): Parser<S, A | B> {
     // @ts-ignore
     return parser(src => {
