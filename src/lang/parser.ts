@@ -12,7 +12,7 @@ type P<A> = TokenParser<Tok, A>;
 
 
 const inParen = <A>(p: P<A>): P<A> =>
-  Comb.surroundedBy(L.oneOf('lp'), p, L.oneOf('rp').orBail('Unclosed ('))
+  Comb.surroundedBy(L.oneOf('lp'), p, L.oneOf('rp'))
 
 const trailingComma = (lookAheadFor: Tok) =>
  L.oneOf('comma').or(L.oneOf(lookAheadFor).lookAhead());
@@ -58,7 +58,7 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
   const table = Comb.surroundedBy(
     L.oneOf('lbr'),
     _tableInnards,
-    L.oneOf('rbr').orBail('Unclosed [ in table literal'),
+    L.oneOf('rbr').orBail('Unclosed { in table literal'),
   ).map(Table);
 
   // Argument pattern for lambda
@@ -92,10 +92,9 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
 
   const _lamBody =
     (args: LamArg[]) =>
-    exprParser.map(expr => _makeLambda(args, expr));
+    exprParser.map(expr => _makeLambda(args, expr)).orBail('After the dot, there should be a function body');
 
-  const lambda =
-      _lamArgs.flatMap(_lamBody);
+  const lambda = _lamArgs.flatMap(_lamBody);
 
   // Conditional
   const ite = Comb.pair(
@@ -166,8 +165,10 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
 
   const opExpr = _operatorList.map(ops => shuntingYard(ops, options));
 
+  const _endOfExpr = Comb.maybe(L.reading('semicolon', _ => null));
+
   // Entry point
-  const exprParser_ = lambda.or(opExpr);
+  const exprParser_ = lambda.or(opExpr).neht(_endOfExpr);
 
   return [exprParser_, newOpts => {options = newOpts}];
 }

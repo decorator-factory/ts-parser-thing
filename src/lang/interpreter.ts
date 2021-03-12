@@ -118,13 +118,47 @@ export class Interpreter {
     if ('err' in parsedE)
       return Err({ type: 'parseError', msg: parsedE.err.msg });
     const [expr, remainingTokens] = parsedE.ok;
-    if (remainingTokens.length !== 0)
-      return Err({ type: 'parseError', msg: 'unexpected end of input' });
+    if (remainingTokens.length !== 0) {
+      const parsedTokens = tokens.slice(0, -remainingTokens.length);
+      const parsedPart = parsedTokens.map(t => t.content).join(' ');
+      const extraPart = remainingTokens.map(t => t.content).join(' ');
+      return Err({
+        type: 'parseError',
+        msg: `I have parsed ${parsedPart} but there's still a leftover: ${extraPart}.\n`
+             + `Perhaps you forgot an opening (, [ or {, or to write a function body?`
+      });
+    }
 
     return this.runAst(expr);
   }
 
-  ///
+  public runMultiline(source: string): Either<LangError, Value[]> {
+    source = source.trim();
+    const expressions: Expr[] = [];
+
+    let tokens: TokenStream<Tok>;
+    try {
+      tokens = lex(source);
+    } catch (e) {
+      return Err({ type: 'lexError', msg: `${e}` });
+    }
+    let expr;
+    while (tokens.length !== 0) {
+      const parsedE = this.stParser.parse(tokens);
+      if ('err' in parsedE)
+        return Err({ type: 'parseError', msg: parsedE.err.msg });
+      [expr, tokens] = parsedE.ok;
+      expressions.push(expr);
+    }
+    const values: Value[] = [];
+    for (const expr of expressions) {
+      const maybeValue = this.runAst(expr);
+      if ('err' in maybeValue)
+        return maybeValue;
+      values.push(maybeValue.ok);
+    }
+    return Ok(values);
+  }
 
   private get envH(): EnvHandle {
     return {
