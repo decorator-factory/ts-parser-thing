@@ -7,6 +7,7 @@ type TokenType =
   | 'name'
   | 'keyword'
   | 'arg'
+  | 'comment'
   ;
 
 export type ColorHandle = Record<TokenType, Format>;
@@ -19,4 +20,5 @@ export const identityColorHandle: ColorHandle = {
   name: s => s,
   keyword: s => s,
   arg: s => s,
+  comment: s => s,
 };

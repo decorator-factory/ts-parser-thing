@@ -42,7 +42,7 @@ const re = makeRegexp(
   ['if',        /if\b/                         ],
   ['then',      /then\b/                       ],
   ['else',      /else\b/                       ],
-  ['ws',        /\s+/                          ],
+  ['ws',        /\s+|#.*\n?/                   ],
   ['lp',        /\(/                           ],
   ['rp',        /\)/                           ],
   ['lsq',       /\[/                           ],
@@ -65,22 +65,33 @@ const re = makeRegexp(
 type LexOptions = { includeWs: boolean };
 export const lex = (src: string, options: LexOptions = { includeWs: false }): TokenStream<Tok> => {
   const tokens: TokenStream<Tok> = [];
+  let latestPos = 0;
   for (const m of src.matchAll(re)) {
     const {k, v} = getGroup(m);
+
+    if (m.index === undefined)
+      throw new Error('Impossible');
+
+    if (latestPos < m.index)
+      throw new Error(`I don't understand: ${src.slice(latestPos, m.index)}`);
+
     if (!['ws'].includes(k) || options.includeWs)
       // @ts-ignore
       tokens.push({type: k, position: m.index, content: v})
+    latestPos = m.index + v.length;
   }
+  if (latestPos !== src.length)
+    throw new Error(`I don't understand: ${src.slice(latestPos)}`);
   return tokens;
 };
 
 
 // @ts-ignore
-const tokenColor = (tokenType: Tok): keyof ColorHandle | null => ({
+const tokenColor = (tokenType: Tok): keyof ColorHandle => ({
   'if': 'keyword',
   'then': 'keyword',
   'else': 'keyword',
-  'ws': null,
+  'ws': 'comment',
   'lp': 'punctuation',
   'rp': 'punctuation',
   'lsq': 'punctuation',
@@ -110,4 +121,6 @@ const _highlightGen = function* (code: string, h: ColorHandle) {
   }
 };
 
-export const highlightCode = (code: string, h: ColorHandle): string => [..._highlightGen(code, h)].join('');
+export const highlightCode =
+  (code: string, h: ColorHandle): string =>
+  [..._highlightGen(code, h)].join('');
