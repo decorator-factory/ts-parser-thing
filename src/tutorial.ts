@@ -22,51 +22,90 @@ const paragraph = async (h: TutorialHandle, ...lines: string[]): Promise<void> =
 }
 
 
-// ((h: TutorialHandle) => Promise<void>)
-const parseTutorial = (source: string) => {
+const parseTutorial = (source: string): ((h: TutorialHandle) => Promise<void>) => {
   const lines = source.split('\n');
 
-  const currentParagraph = [];
-  const commands: ((h: TutorialHandle) => Promise<any>)[] = [];
+  let currentParagraph: string[] = [];
+  const commands: ((h: TutorialHandle) => Promise<void>)[] = [];
 
-  const callbacks = [
-    ['PROMPT', (s: string) => { commands.push( async h => h.prompt() ) }],
-    ['PROMPT', (s: string) => { commands.push( async h => h.prompt() ) }],
+  const callbacks: [string, (s: string) => void][] = [
+    // Title
+    ['T', (s: string) => { commands.push( async h => h.title(s) ) }],
+
+    // Subtitle
+    ['S', (s: string) => { commands.push( async h => h.subtitle(s) ) }],
+
+    // Line
+    ['L', (s: string) => { commands.push( async h => await h.line(s) ) }],
+
+    // Code prompt
+    ['!', (s: string) => { commands.push( async h => await h.askForCodeUntilEquals(h.eval(s))) }],
+
+    // Prompt
+    ['?', (s: string) => { commands.push( async h => await h.prompt() ) }],
+
+    // Just code
+    ['C', (s: string) => { commands.push( async h => h.code(s) ) }],
+
+    // Paragraph line
+    ['.', (s: string) => { currentParagraph.push(s) }],
+
+    // End of paragraph
+    ['\n\n', (s: string) => {
+      if (currentParagraph.length === 0) return;
+      const para = currentParagraph;
+      commands.push( async h => await paragraph(h, ...para) );
+      currentParagraph = [];
+    }],
   ];
 
-  for (const line of lines) {
+  for (const line of lines)
+    for (const [tag, cb]  of callbacks)
+      if (line.startsWith(tag)) {
+        cb(line.slice(tag.length + 1).trimLeft());
+        break;
+      }
 
-  }
+  return async (h: TutorialHandle) => {
+    for (const cmd of commands)
+      await cmd(h);
+  };
 };
 
 
-export const chapter0 = async (h: TutorialHandle) => {
-  h.title("Chapter 0");
-  h.subtitle("Welcome");
+export const chapter0 = parseTutorial(`
+T Chapter 0
+S Welcome
 
-  await paragraph(h,
-    "Welcome to the interactive tutorial to `$LANG_NAME`!",
-  );
+. Welcome to the interactive tutorial to $LANG_NAME
 
-  await paragraph(h,
-    "Disclaimer:",
-    "This tutorial assumes some existing programming knowledge.",
-  );
+. Disclaimer:
+. This tutorial assumes some existing programming knowledge.
 
-  await paragraph(h,
-    "Experience with functional programming will help, but is not required.",
-  );
+| Experience with functional programming will help, but is not required.
+;
 
-  await paragraph(h,
-    "In this tutorial, you're going to interact with the ^interactive console^.",
-    "It's a prompt where you can type expressions to be executed.",
-  );
+- Enter @37 + 5@ to continue
+?= 37 + 5
+| Good job!
+;
 
-  await h.line('Enter `37 + 5` to continue:');
+| You can call a function by simply writing arguments after its name,
+| just like you run commands at the command line:
+;
 
-  await h.askForCodeUntilEquals(h.eval('42'));
+|= div 17 4
+|= div 15 4
 
-  await paragraph(h,
-    'Good job!'
-  );
-};
+| Type those commands to see what results you get:
+;
+
+?= div 17 4
+- yup
+?= div 15 4
+- exactly
+
+| As you probably guessed, @div@ divides two integers and discards the remainder.
+;
+
+`);

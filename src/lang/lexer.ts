@@ -59,11 +59,13 @@ const re = makeRegexp(
   ['string2',   /"(?:\\.|[^"])*"/              ],
 );
 
-export const lex = (src: string): TokenStream<Tok> => {
+
+type LexOptions = { includeWs: boolean };
+export const lex = (src: string, options: LexOptions = { includeWs: false }): TokenStream<Tok> => {
   const tokens: TokenStream<Tok> = [];
   for (const m of src.matchAll(re)) {
     const {k, v} = getGroup(m);
-    if (!['ws'].includes(k))
+    if (!['ws'].includes(k) || options.includeWs)
       // @ts-ignore
       tokens.push({type: k, position: m.index, content: v})
   }
@@ -96,7 +98,7 @@ const tokenColor = (tokenType: Tok): keyof ColorHandle | null => ({
 
 
 const _highlightGen = function* (code: string, h: ColorHandle) {
-  for (const token of lex(code)){
+  for (const token of lex(code, {includeWs: true})){
     const col = tokenColor(token.type);
     if (col === null)
       yield token.content;

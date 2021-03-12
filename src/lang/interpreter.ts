@@ -318,6 +318,12 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
   return {
     parent,
     names: Map({
+      'div': NativeOk('div',
+        aV => Native(() => `(div ${prettyPrint(aV)})`,
+          bV => Ei.flatMap2(asInt(aV), asInt(bV), (a, b) => Ok(Int(a / b)))
+        )
+      ),
+      '%': _binOp('%', asInt, asInt, (a, b) => Ok(Int(a % b))),
       '+': _binOp('+', asInt, asInt, (a, b) => Ok(Int(a + b))),
       '-': _binOp('-', asInt, asInt, (a, b) => Ok(Int(a - b))),
       '*': _binOp('*', asInt, asInt, (a, b) => Ok(Int(a * b))),
@@ -336,6 +342,7 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
 
       'Num': ModuleInt,
       'Str': ModuleStr,
+
       'IO': ModuleIO(h),
     })
   };

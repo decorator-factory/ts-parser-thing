@@ -42,6 +42,25 @@ export const flatMap =
     flatten(map(ea, f));
 
 
+export const flatMap2 =
+  <E, A, B, C>(
+    ea: Either<E, A>,
+    eb: Either<E, B>,
+    f: (a: A, b: B) => Either<E, C>
+  ): Either<E, C> =>
+    flatMap(ea, a => flatMap(eb, b => f(a, b)));
+
+
+export const flatMap3 =
+  <E, A, B, C, D>(
+    ea: Either<E, A>,
+    eb: Either<E, B>,
+    ec: Either<E, C>,
+    f: (a: A, b: B, c: C) => Either<E, D>
+  ): Either<E, D> =>
+    flatMap(ea, a => flatMap(eb, b => flatMap(ec, c => f(a, b, c))));
+
+
 export const or =
   <E, A>(
     ifAllFail: E,

@@ -130,7 +130,7 @@ const tutorialHandle: TutorialHandle = (() => {
   };
 
   const indent = (s: string, indentAmount: number): string =>
-    s.split('\n').map(line => ' '.repeat(indentAmount)).join('');
+    s.split('\n').map(line => ' '.repeat(indentAmount) + line).join('');
 
   const indentTo = (s: string, indentAmount: number): string =>
     indent(dedent(s), indentAmount);
@@ -151,17 +151,19 @@ const tutorialHandle: TutorialHandle = (() => {
       const formatted =
         s
         .replace(/\^([^^]+)\^/g, subs => chalk.italic(subs.slice(1, -1)))
-        .replace(/`([^`]+)`/g, subs => chalk.bgBlack.greenBright(subs.slice(1, -1)));
+        .replace(/@([^@]+)@/g, subs => chalk.bgBlack.greenBright(subs.slice(1, -1)));
 
       for (const c of formatted) {
         process.stdout.write(c);
-        await new Promise(resolve => setTimeout(resolve, 10));
+        // await new Promise(resolve => setTimeout(resolve, 10));
+        await new Promise(resolve => setTimeout(resolve, 1));
       }
-      await new Promise(resolve => setTimeout(resolve, 120));
+      // await new Promise(resolve => setTimeout(resolve, 120));
+      await new Promise(resolve => setTimeout(resolve, 2));
       process.stdout.write('\n');
     },
     code: s => {
-      console.log(highlightCode(indentTo(s, 2), colors))
+      console.log(highlightCode(indentTo(s, 2), colors));
     },
     error: s => {
       console.log('! ' + s);
@@ -225,6 +227,9 @@ const tutorialHandle: TutorialHandle = (() => {
 
     prompt: () => new Promise(resolve => {
       process.stdout.write(chalk.italic.gray('press Enter to continue '));
+
+      // TODO:
+      console.log(); resolve(); return;
 
       const rl = readline.createInterface({input: process.stdin, output: process.stdout});
       rl.on('line', () => {
