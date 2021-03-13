@@ -11,7 +11,7 @@ const L = new Lang<Tok>();
 type P<A> = TokenParser<Tok, A>;
 
 
-const inParen = <A>(p: P<A>): P<A> =>
+const inParentheses = <A>(p: P<A>): P<A> =>
   Comb.surroundedBy(L.oneOf('lp'), p, L.oneOf('rp'))
 
 const trailingComma = (lookAheadFor: Tok) =>
@@ -20,84 +20,92 @@ const trailingComma = (lookAheadFor: Tok) =>
 
 type SetOptions = (options: ParseOptions) => void;
 export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
-  const _nameOrOp = L.reading('name', n => n).or(L.reading('op', n => n));
+  const nameOrOperator = L.reading('name', n => n).or(L.reading('op', n => n));
 
-  // forward referencing, because further parser need this
+
   const exprParser: P<Expr> = Comb.lazy(() => exprParser_);
 
-  // Name
+
   const name = L.reading('name', Name);
 
-  // Number
-  const num = L.reading('num', s => Int(BigInt(s)));
 
-  // String
-  const str = L.reading('string1', eval).or(L.reading('string2', eval)).map(Str);
+  const intLiteral = L.reading('num', s => Int(BigInt(s)));
 
-  // Symbol
-  const symbol =
+
+  const stringLiteral =
+    L.reading('string1', eval).or(L.reading('string2', eval)).map(Str);
+
+
+  const symbolLiteral =
     L.oneOf('col')
     .then(
-      _nameOrOp.map(Symbol)
+      nameOrOperator.map(Symbol)
       .orBail('Expected name or operator after :')
     );
 
-  // Parenthesized expression
-  const paren = inParen(exprParser);
 
-  // Table
-  const _tableRecord =
-    Comb.pair(
-      _nameOrOp.neht(L.oneOf('col')),
+  const parenthesized = inParentheses(exprParser);
+
+
+  const tableLiteral = (() => {
+    const singleTableEntry =
+      Comb.pair(
+        nameOrOperator.neht(L.oneOf('col')),
+        exprParser
+      );
+
+    const tableContents =
+      Comb.many(singleTableEntry.neht(trailingComma('rbr')))
+
+    return Comb.surroundedBy(
+      L.oneOf('lbr'),
+      tableContents,
+      L.oneOf('rbr').orBail('Unclosed { in table literal'),
+    ).map(Table);
+  })();
+
+
+  const lambda = (() => {
+    const nameParameter = nameOrOperator.map(ArgSingle);
+
+    const tableParameter = (() => {
+      const singleTableEntry = (target: string) =>
+        L.oneOf('col').then(parameter).map(
+          (p): [string, LamArg] => [target, p]
+        )
+        .or(Comb.always([target, ArgSingle(target)]));
+
+      const _tablePatHelper: P<[string, LamArg][]> = Comb.surroundedBy(
+        L.oneOf('lbr'),
+        Comb.many(
+          nameOrOperator
+          .flatMap(singleTableEntry)
+          .neht(trailingComma('rbr'))
+        ),
+        L.oneOf('rbr'),
+      );
+      return _tablePatHelper.map(ArgTable);``
+    })();
+
+    const parameter = nameParameter.or(tableParameter);
+
+    const parameterList = Comb.many(parameter).neht(L.oneOf('dot'));
+
+    // Helper function to turn (x y z. body) into (x. (y. (z. body)))
+    const _makeLambda = (argNames: LamArg[], expr: Expr): Expr =>
+      argNames.reduceRight((acc, arg) => Lam(arg, acc), expr);
+
+    const functionBody =
+      (args: LamArg[]) =>
       exprParser
-    );
+        .map(expr => _makeLambda(args, expr))
+        .orBail('After the dot, there should be a function body');
 
-  const _tableInnards =
-    Comb.many(_tableRecord.neht(trailingComma('rbr')))
+    return parameterList.flatMap(functionBody);
+  })();
 
-  const table = Comb.surroundedBy(
-    L.oneOf('lbr'),
-    _tableInnards,
-    L.oneOf('rbr').orBail('Unclosed { in table literal'),
-  ).map(Table);
 
-  // Argument pattern for lambda
-  const _namePat = _nameOrOp.map(ArgSingle);
-
-  const _tableValue = (target: string) =>
-    L.oneOf('col').then(_lamArg).map(
-      (p): [string, LamArg] => [target, p]
-    )
-    .or(Comb.always([target, ArgSingle(target)]));
-
-  const _tablePatHelper: P<[string, LamArg][]> = Comb.surroundedBy(
-    L.oneOf('lbr'),
-    Comb.many(
-      _nameOrOp
-      .flatMap(_tableValue)
-      .neht(trailingComma('rbr'))
-    ),
-    L.oneOf('rbr'),
-  )
-
-  const _tablePat = _tablePatHelper.map(ArgTable);
-
-  const _lamArg = _namePat.or(_tablePat);
-
-  // Lambda
-  const _makeLambda = (argNames: LamArg[], expr: Expr): Expr =>
-    argNames.reduceRight((acc, arg) => Lam(arg, acc), expr);
-
-  const _lamArgs = Comb.many(_lamArg).neht(L.oneOf('dot'));
-
-  const _lamBody =
-    (args: LamArg[]) =>
-    exprParser.map(expr => _makeLambda(args, expr)).orBail('After the dot, there should be a function body');
-
-  const lambda = _lamArgs.flatMap(_lamBody);
-
-  // Conditional
-  const ite = Comb.pair(
+  const ifThenElse = Comb.pair(
     L.oneOf('if').then(exprParser.orBail('Expected expression after `if`')),
     Comb.pair(
       L.oneOf('then').orBail('Expected `then`').then(exprParser),
@@ -109,66 +117,82 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
   // `atomic` is something that doesn't change the parsing result
   // if you surround it with parentheses
   const atomic: P<Expr> =
-    Comb.lazy(() => opSection)
-    .or(num)
-    .or(str)
+    Comb.lazy(() => operatorSection)
+    .or(intLiteral)
+    .or(stringLiteral)
     .or(name)
-    .or(paren)
-    .or(ite)
-    .or(symbol)
-    .or(table);
+    .or(parenthesized)
+    .or(ifThenElse)
+    .or(symbolLiteral)
+    .or(tableLiteral);
 
-  // Operator section
-  const _op =
-    L.reading('op', Name)
-    .or(L.oneOf('backtick').then(L.reading('name', Name)).neht(L.oneOf('backtick').orBail('Unclosed `')));
 
-  const _leftSection = // (+ 1)
-    inParen(Comb.pair(_op, atomic))
-    .map(([op, right]) => Lam(ArgSingle('_'), App(App(op, Name('_')), right)));
-  // (+ 1) <=> {_: _ + 1}
+  const operatorSection = (() => {
+    // An operator section can have either an infix operator,
+    // like (+ 3), or a backticked name, like (`div` 2)
+    const infixOperator =
+      L.reading('op', Name)
+      .or(
+        L.oneOf('backtick')
+        .then(L.reading('name', Name))
+        .neht(L.oneOf('backtick').orBail('Unclosed `'))
+      );
 
-  const _rightSection =
-    inParen(Comb.pair(atomic, _op))
-    .map(([left, op]) => App(op, left));
-  // (1 +) <=> ((+) 1)
+    // (+ 1) <=> {_: _ + 1}
+    const leftSection =
+      inParentheses(Comb.pair(infixOperator, atomic))
+      .map(([op, right]) => Lam(ArgSingle('_'), App(App(op, Name('_')), right)));
 
-  const _bareOp = inParen(_op);
-  // (+)
+    // (1 +) <=> ((+) 1)
+    const rightSection =
+      inParentheses(Comb.pair(atomic, infixOperator))
+      .map(([left, op]) => App(op, left));
 
-  const opSection = _leftSection.or(_rightSection).or(_bareOp);
+    // (+)
+    const bareOperator = inParentheses(infixOperator);
+
+    return  leftSection.or(rightSection).or(bareOperator);
+  })();
+
 
   const application =
     Comb.manyAtLeast(atomic, 1, 'Unexpected end of input')
         .map(([first, ...rest]) => rest.reduce(App, first));
+        // (a b c d) = (((a b) c) d) = App(App(App(a, b), c), d)
+        // where a, b, c, d are atomic expressions
 
-  // Infix operator parser
-  const _symbolInfixOp =
-    L.reading<Op>('op',
-      value => ({type: 'infix', value})
+
+  const infixOperatorExpression = (() => {
+    // Infix expression, like (1 + a - b c d * e f g)
+
+    const symbolInfixOp =
+      L.reading<Op>('op',
+        value => ({type: 'infix', value})
+      );
+
+    const backtickInfixOp =
+      L.oneOf('backtick')
+      .then(exprParser.map<Op>(expr => ({type: 'expr', expr})))
+      .neht(L.oneOf('backtick'));
+
+    const infixOperator =symbolInfixOp.or(backtickInfixOp);
+
+    const operatorList: P<Ops> = Comb.pair(
+      application,
+      Comb.many(Comb.pair(infixOperator, application))
+    ).map(
+      ([initial, chunks]) => ({initial, chunks})
     );
 
-  const _backtickInfixExpr =
-    L.oneOf('backtick')
-    .then(exprParser.map<Op>(expr => ({type: 'expr', expr})))
-    .neht(L.oneOf('backtick'));
+    return operatorList.map(ops => shuntingYard(ops, options));
+  })();
 
-  const _infixOperator = _symbolInfixOp.or(_backtickInfixExpr);
 
-  // Infix operator application using the Shunting yard algorithm:
-  const _operatorList: P<Ops> = Comb.pair(
-    application,
-    Comb.many(Comb.pair(_infixOperator, application))
-  ).map(
-    ([initial, chunks]) => ({initial, chunks})
-  )
-
-  const opExpr = _operatorList.map(ops => shuntingYard(ops, options));
-
-  const _endOfExpr = Comb.maybe(L.reading('semicolon', _ => null));
+  const exprEnd = Comb.maybe(L.oneOf('semicolon'));
 
   // Entry point
-  const exprParser_ = lambda.or(opExpr).neht(_endOfExpr);
+  const exprParser_ = lambda.or(infixOperatorExpression).neht(exprEnd);
+
 
   return [exprParser_, newOpts => {options = newOpts}];
 }
