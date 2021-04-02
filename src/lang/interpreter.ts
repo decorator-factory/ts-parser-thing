@@ -271,6 +271,19 @@ const _binOpId = (
 
 
 const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
+  'import': NativeOk(
+    'IO:import',
+    tV => Native(`IO:import ${prettyPrint(tV)}`,
+      (sV, e) => Ei.flatMap(asStrOrSymb(sV), name => {
+        h.deleteName(name);
+        const v = applyFunction(tV, Symbol(name), e);
+        if ('err' in v)
+          return v;
+        h.setName(name, v.ok);
+        return v;
+      }))
+  ),
+
   'log': Native(
     'IO:log',
     sV => Ei.flatMap(asStr(sV), s => {
