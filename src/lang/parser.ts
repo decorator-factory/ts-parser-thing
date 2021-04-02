@@ -266,7 +266,7 @@ export const unparse = (expr: Expr, col: ColorHandle = identityColorHandle, dept
   switch (expr.tag) {
     case 'name': return col.name(isIdentifier(expr.name) ? expr.name : `(${expr.name})`);
     case 'int': return col.num(`${expr.value}`.replace('n', ''));
-    case 'dec': return col.num(expr.value.toString());
+    case 'dec': return col.num(expr.value.mod(1).eq(0) ? expr.value.toString() + '.0' : expr.value.toString());
     case 'str': return col.str(JSON.stringify(expr.value));
     case 'symbol': return col.constant(':' + expr.value);
     case 'table': return (

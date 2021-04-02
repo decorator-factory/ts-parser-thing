@@ -3,7 +3,7 @@ import { makeParser, unparse } from "./parser";
 import {
   applyFunction,
   asFun,
-  asNum as asInt,
+  asInt as asInt,
   asStr,
   asStrOrSymb,
   asTable,
@@ -22,6 +22,8 @@ import {
   Symbol,
   Table,
   Value,
+  asDecOrInt,
+  Dec,
 } from "./runtime";
 import { Map } from "immutable";
 import { lex, Tok } from "./lexer";
@@ -38,6 +40,13 @@ const DEFAULT_PARSER_OPTIONS = {
     '-': Prio(6, 'left'),
     '*': Prio(8, 'left'),
     '^': Prio(10, 'right'),
+
+    '+.': Prio(6, 'left'),
+    '-.': Prio(6, 'left'),
+    '*.': Prio(8, 'left'),
+    '^.': Prio(10, 'right'),
+    '/.': Prio(8, 'left'),
+
     '++': Prio(10, 'left'),
     '<<': Prio(3, 'right'),
     '>>': Prio(3, 'left'),
@@ -384,16 +393,20 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
   return {
     parent,
     names: Map({
-      'div': NativeOk('div',
-        aV => Native(() => `(div ${prettyPrint(aV)})`,
-          bV => Ei.flatMap2(asInt(aV), asInt(bV), (a, b) => Ok(Int(a / b)))
-        )
-      ),
+      'div': _binOp('div', asInt, asInt, (a, b) => Ok(Int(a / b))),
       '%': _binOp('%', asInt, asInt, (a, b) => Ok(Int(a % b))),
+
       '+': _binOp('+', asInt, asInt, (a, b) => Ok(Int(a + b))),
       '-': _binOp('-', asInt, asInt, (a, b) => Ok(Int(a - b))),
       '*': _binOp('*', asInt, asInt, (a, b) => Ok(Int(a * b))),
       '^': _binOp('^', asInt, asInt, (a, b) => Ok(Int(a ** b))),
+
+      '+.': _binOp('+.', asDecOrInt, asDecOrInt, (a, b) => Ok(Dec(a.add(b)))),
+      '-.': _binOp('-.', asDecOrInt, asDecOrInt, (a, b) => Ok(Dec(a.sub(b)))),
+      '*.': _binOp('*.', asDecOrInt, asDecOrInt, (a, b) => Ok(Dec(a.mul(b)))),
+      '^.': _binOp('^.', asDecOrInt, asDecOrInt, (a, b) => Ok(Dec(a.pow(b.toNumber())))),
+      '/.': _binOp('/.', asDecOrInt, asDecOrInt, (a, b) => Ok(Dec(a.div(b)))),
+
       '++': _binOp('-', asStr, asStr, (a, b) => Ok(Str(a + b))),
       '<<': _binOpId('<<', (a, b) => Ok(compose(a, b))),
       '>>': _binOpId('>>', (a, b) => Ok(compose(b, a))),

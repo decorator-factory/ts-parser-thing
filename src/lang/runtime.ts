@@ -87,10 +87,24 @@ export const renderRuntimeError = (err: RuntimeError): Value => {
 export type Partial<A> = Either<RuntimeError, A>;
 
 
-export const asNum = (v: Value): Partial<bigint> => {
+export const asInt = (v: Value): Partial<bigint> => {
   if (!('int' in v))
-    return Err(UnexpectedType('number', v));
+    return Err(UnexpectedType('integer', v));
   return Ok(v.int);
+};
+
+export const asDec = (v: Value): Partial<Big> => {
+  if (!('dec' in v))
+    return Err(UnexpectedType('decimal', v));
+  return Ok(v.dec);
+};
+
+export const asDecOrInt = (v: Value): Partial<Big> => {
+  if ('dec' in v)
+    return Ok(v.dec);
+  if ('int' in v)
+    return Ok(new Big(`${v.int}`))
+  return Err(UnexpectedType('integer|decimal', v));
 };
 
 export const asStr = (v: Value): Partial<string> => {
@@ -150,6 +164,11 @@ export const prettyPrint = (v: Value, col: ColorHandle = identityColorHandle, de
   else if ('int' in v)
     return col.num(`${v.int}`.replace('n', ''));
 
+  else if ('dec' in v)
+    return col.num(
+      v.dec.mod(1).eq(0) ? v.dec.toString() + '.0' : v.dec.toString()
+    );
+
   else if ('fun' in v)
     return (v.fun.capturedNames.length === 0)
       ? `${unparse(v.fun, col, depth)}`
@@ -163,9 +182,6 @@ export const prettyPrint = (v: Value, col: ColorHandle = identityColorHandle, de
 
   else if ('bool' in v)
     return col.constant(`${v.bool}`);
-
-  else if ('dec' in v)
-    return col.num(v.dec.toString());
 
   else
     return v.table.size === 0
@@ -303,7 +319,12 @@ export const computeDiff = (e: Value, a: Value): string | null => {
   if ('int' in e)
     return 'int' in a
     ? (e.int === a.int ? null : `expected ${prettyPrint(e)}, got ${prettyPrint(a)}`)
-    : `expected number, got ${prettyPrint(a)}`;
+    : `expected integer, got ${prettyPrint(a)}`;
+
+  if ('dec' in e)
+    return 'dec' in a
+    ? (e.dec === a.dec ? null : `expected ${prettyPrint(e)}, got ${prettyPrint(a)}`)
+    : `expected decimal, got ${prettyPrint(a)}`;
 
   if ('symbol' in e)
     return 'symbol' in a
