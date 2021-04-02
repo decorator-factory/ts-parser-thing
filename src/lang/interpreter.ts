@@ -74,6 +74,19 @@ export class StatefulParser {
   public parse(stream: TokenStream<Tok>) {
     return this.parser.parse(stream);
   }
+
+  public parseMultiline(stream: TokenStream<Tok>): Either<LangError, Expr[]> {
+    const expressions: Expr[] = [];
+    let expr;
+    while (stream.length !== 0) {
+      const parsedE = this.parse(stream);
+      if ('err' in parsedE)
+        return Err({ type: 'parseError', msg: parsedE.err.msg });
+      [expr, stream] = parsedE.ok;
+      expressions.push(expr);
+    }
+    return Ok(expressions);
+  }
 }
 
 
@@ -134,34 +147,31 @@ export class Interpreter {
 
   public runMultiline(source: string): Either<LangError, Value[]> {
     source = source.trim();
-    const expressions: Expr[] = [];
 
-    let tokens: TokenStream<Tok>;
+    let stream: TokenStream<Tok>;
     try {
-      tokens = lex(source);
+      stream = lex(source);
     } catch (e) {
       return Err({ type: 'lexError', msg: `${e}` });
     }
-    let expr;
-    while (tokens.length !== 0) {
-      const parsedE = this.stParser.parse(tokens);
-      if ('err' in parsedE)
-        return Err({ type: 'parseError', msg: parsedE.err.msg });
-      [expr, tokens] = parsedE.ok;
-      expressions.push(expr);
-    }
-    const values: Value[] = [];
-    for (const expr of expressions) {
-      const maybeValue = this.runAst(expr);
-      if ('err' in maybeValue)
-        return maybeValue;
-      values.push(maybeValue.ok);
-    }
-    return Ok(values);
+
+    const parsed = this.stParser.parseMultiline(stream);
+
+    return Ei.flatMap(parsed, expressions => {
+      const values: Value[] = [];
+      for (const expr of expressions) {
+        const maybeValue = this.runAst(expr);
+        if ('err' in maybeValue)
+          return maybeValue;
+        values.push(maybeValue.ok);
+      }
+      return Ok(values);
+    })
   }
 
   private get envH(): EnvHandle {
     return {
+      parser: this.stParser,
       setName: (name, value) => { this.setName(name, value); },
       deleteName: name => { this.deleteName(name); },
       exit: this.exit,
@@ -193,6 +203,7 @@ const compose = (f1: Value, f2: Value): Value =>
 
 
 export type EnvHandle = {
+  parser: StatefulParser,
   setName: (name: string, value: Value) => void,
   deleteName: (name: string) => void,
   exit: () => void,
@@ -332,6 +343,26 @@ const ModuleStr = _makeModule("Str", Map({
 }));
 
 
+const ModuleRefl = (h: EnvHandle) => _makeModule("Refl", Map({
+  'lex': Native('lex', (v, e) =>
+    Ei.map(asStr(v), source => {
+      const stream  = lex(source);
+      for (const tok of stream)
+        console.log(`${tok.type} @${tok.position}: ${tok.content}`);
+      return unit;
+    })
+  ),
+  'parse': Native('parse', (v, e) =>
+    Ei.map(asStr(v), source => {
+      const stream  = lex(source);
+      const parsed = h.parser.parseMultiline(stream);
+      console.dir(parsed, {depth: null})
+      return unit;
+    })
+  ),
+}))
+
+
 const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
 
   const _fallback = _binOpId('|?', (primaryV, fallbackV) =>
@@ -377,6 +408,8 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
 
       'Int': ModuleInt,
       'Str': ModuleStr,
+
+      'Refl': ModuleRefl(h),
 
       'IO': ModuleIO(h),
     })

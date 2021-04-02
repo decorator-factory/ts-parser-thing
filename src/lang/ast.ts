@@ -1,7 +1,11 @@
+import Big from 'big.js';
+
+
 export type Expr =
   | {tag: 'name', name: string}
   | {tag: 'app', fun: Expr, arg: Expr}
   | {tag: 'int', value: bigint}
+  | {tag: 'dec', value: Big}
   | {tag: 'str', value: string}
   | {tag: 'symbol', value: string}
   | {tag: 'table', pairs: [string, Expr][] }
@@ -51,6 +55,10 @@ export const Int =
   (value: bigint): Expr =>
     ({tag: 'int', value});
 
+export const Dec =
+(value: Big): Expr =>
+  ({tag: 'dec', value});
+
 export const Str =
 (value: string): Expr =>
   ({tag: 'str', value});
@@ -92,6 +100,9 @@ const _getCapturedNames = (expr: Expr, exclude: string[]): string[] => {
       );
 
     case 'int':
+      return [];
+
+    case 'dec':
       return [];
 
     case 'str':

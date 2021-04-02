@@ -6,6 +6,7 @@ import * as Ei from '../either';
 
 import { Map } from 'immutable';
 import { ColorHandle, identityColorHandle } from './color';
+import Big from 'big.js';
 
 
 const tryLookupName = (name: string, env: Env): Value | null => {
@@ -31,6 +32,7 @@ export type LazyName = string | (() => string);
 export type Value =
   | {str: string}
   | {int: bigint}
+  | {dec: Big}
   | {symbol: string}
   | FunT
   | {native: NativeFn, name: LazyName}
@@ -40,7 +42,8 @@ export type Value =
 
 export const Str = (str: string): Value => ({str});
 export const Symbol = (symbol: string): Value => ({symbol});
-export const Int = (num: bigint): Value => ({int: num});
+export const Int = (int: bigint): Value => ({int});
+export const Dec = (dec: Big): Value => ({dec});
 export const Bool = (bool: boolean): Value => ({bool});
 export const Table = (table: Map<string, Value>): Value => ({table});
 export const Fun = (fun: LamT, closure: Env): Value => ({fun, closure});
@@ -161,6 +164,9 @@ export const prettyPrint = (v: Value, col: ColorHandle = identityColorHandle, de
   else if ('bool' in v)
     return col.constant(`${v.bool}`);
 
+  else if ('dec' in v)
+    return col.num(v.dec.toString());
+
   else
     return v.table.size === 0
       ? col.constant('{}')
@@ -176,6 +182,9 @@ export const interpret = (expr: Expr, env: Env): Partial<Value> => {
   switch (expr.tag) {
     case 'int':
       return Ok(Int(expr.value));
+
+    case 'dec':
+      return Ok(Dec(expr.value));
 
     case 'str':
       return Ok(Str(expr.value));

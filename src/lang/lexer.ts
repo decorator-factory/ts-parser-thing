@@ -3,7 +3,8 @@ import { ColorHandle } from './color';
 
 export type Tok =
   | 'name'
-  | 'num'
+  | 'int'
+  | 'dec'
   | 'lp'
   | 'rp'
   | 'lbr'
@@ -34,7 +35,7 @@ const makeRegexp = (...pairs: [Tok, RegExp][]) =>
   new RegExp(
     pairs
     .map(([name, inner]) => `(?<${name}>${inner.source})`)
-    .join('|'),
+    .join('|' ),
     'gm'
   );
 
@@ -52,8 +53,9 @@ const re = makeRegexp(
   ['col',       /:/                            ],
   ['comma',     /,/                            ],
   ['name',      /(?![0-9?!])[a-zA-Z_0-9?!]+/   ],
+  ['dec',       /[-+]?\d+\.\d+(e[-+]\d+)?/     ],
+  ['int',       /[-+]?(?:0|[1-9][0-9]*)/       ],
   ['dot',       /\./                           ],
-  ['num',       /[-+]?(?:0|[1-9][0-9]*)/       ],
   ['op',        /[-+=*/%!|&^$><?]+/            ],
   ['backtick',  /`/                            ],
   ['string1',   /'(?:\\.|[^'])*'/              ],
