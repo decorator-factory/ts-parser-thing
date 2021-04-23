@@ -7,6 +7,8 @@ import * as Ei from '../either';
 import { Map } from 'immutable';
 import { ColorHandle, identityColorHandle } from './color';
 import Big from 'big.js';
+import Fraction from 'fraction.js';
+import { Dimension, makeUnit, Unit as UnitType, UnitSource } from './units';
 
 
 const tryLookupName = (name: string, env: Env): Value | null => {
@@ -31,8 +33,7 @@ export type FunT = {fun: LamT, closure: Env};
 export type LazyName = string | (() => string);
 export type Value =
   | {str: string}
-  | {int: bigint}
-  | {dec: Big}
+  | {unit: UnitType}
   | {symbol: string}
   | FunT
   | {native: NativeFn, name: LazyName}
@@ -42,8 +43,7 @@ export type Value =
 
 export const Str = (str: string): Value => ({str});
 export const Symbol = (symbol: string): Value => ({symbol});
-export const Int = (int: bigint): Value => ({int});
-export const Dec = (dec: Big): Value => ({dec});
+export const Unit = (...unit: UnitSource): Value => ({unit: makeUnit(...unit)});
 export const Bool = (bool: boolean): Value => ({bool});
 export const Table = (table: Map<string, Value>): Value => ({table});
 export const Fun = (fun: LamT, closure: Env): Value => ({fun, closure});
@@ -55,6 +55,8 @@ export type RuntimeError =
   | {type: 'unexpectedType', details: {expected: string, got: Value}}
   | {type: 'missingKey', details: {key: string}}
   | {type: 'undefinedName', details: {name: string}}
+  | {type: 'dimensionMismatch', details: {left: Dimension, right: Dimension}}
+  | {type: 'notInDomain', details: {domain: string, value: Value, ctx: string}}
   ;
 export const UnexpectedType =
   (expected: string, got: Value): RuntimeError => ({
@@ -68,14 +70,25 @@ export const UndefinedName =
   (name: string): RuntimeError => ({
     type: 'undefinedName', details: {name}
   });
-
+export const DimensionMismatch =
+  (left: Dimension, right: Dimension): RuntimeError => ({
+    type: 'dimensionMismatch', details: {left, right}
+  });
+export const NotInDomain =
+  (domain: string, value: Value, ctx: string): RuntimeError => ({
+    type: 'notInDomain', details: {domain, value, ctx}
+  });
 
 export const renderRuntimeError = (err: RuntimeError): Value => {
-  const details: any =
+  const details: Record<string, Value> =
     (err.type === 'unexpectedType')
     ? {expected: Str(err.details.expected), got: err.details.got}
     : (err.type === 'missingKey')
     ? {key: Str(err.details.key)}
+    : (err.type === 'dimensionMismatch')
+    ? {left: Unit(1, err.details.left), right: Unit(1, err.details.right)}
+    : (err.type === 'notInDomain')
+    ? {domain: Str(err.details.domain), value: err.details.value, ctx: Str(err.details.ctx)}
     : {name: Str(err.details.name)};
   return Table(Map({
     error: Str(err.type),
@@ -87,24 +100,10 @@ export const renderRuntimeError = (err: RuntimeError): Value => {
 export type Partial<A> = Either<RuntimeError, A>;
 
 
-export const asInt = (v: Value): Partial<bigint> => {
-  if (!('int' in v))
-    return Err(UnexpectedType('integer', v));
-  return Ok(v.int);
-};
-
-export const asDec = (v: Value): Partial<Big> => {
-  if (!('dec' in v))
-    return Err(UnexpectedType('decimal', v));
-  return Ok(v.dec);
-};
-
-export const asDecOrInt = (v: Value): Partial<Big> => {
-  if ('dec' in v)
-    return Ok(v.dec);
-  if ('int' in v)
-    return Ok(new Big(`${v.int}`))
-  return Err(UnexpectedType('integer|decimal', v));
+export const asUnit = (v: Value): Partial<UnitType> => {
+  if (!('unit' in v))
+    return Err(UnexpectedType('unit', v));
+  return Ok(v.unit);
 };
 
 export const asStr = (v: Value): Partial<string> => {
@@ -161,13 +160,8 @@ export const prettyPrint = (v: Value, col: ColorHandle = identityColorHandle, de
   if ('str' in v)
     return col.str(JSON.stringify(v.str));
 
-  else if ('int' in v)
-    return col.num(`${v.int}`.replace('n', ''));
-
-  else if ('dec' in v)
-    return col.num(
-      v.dec.mod(1).eq(0) ? v.dec.toString() + '.0' : v.dec.toString()
-    );
+  else if ('unit' in v)
+    return col.num(v.unit.toString());
 
   else if ('fun' in v)
     return (v.fun.capturedNames.length === 0)
@@ -196,11 +190,8 @@ export const prettyPrint = (v: Value, col: ColorHandle = identityColorHandle, de
 
 export const interpret = (expr: Expr, env: Env): Partial<Value> => {
   switch (expr.tag) {
-    case 'int':
-      return Ok(Int(expr.value));
-
     case 'dec':
-      return Ok(Dec(expr.value));
+      return Ok(Unit(expr.value));
 
     case 'str':
       return Ok(Str(expr.value));
@@ -316,15 +307,10 @@ export const computeDiff = (e: Value, a: Value): string | null => {
       ? (e.str === a.str ? null : `expected ${prettyPrint(e)}, got ${prettyPrint(a)}`)
       : `expected string, got ${prettyPrint(a)}`;
 
-  if ('int' in e)
-    return 'int' in a
-    ? (e.int === a.int ? null : `expected ${prettyPrint(e)}, got ${prettyPrint(a)}`)
-    : `expected integer, got ${prettyPrint(a)}`;
-
-  if ('dec' in e)
-    return 'dec' in a
-    ? (e.dec === a.dec ? null : `expected ${prettyPrint(e)}, got ${prettyPrint(a)}`)
-    : `expected decimal, got ${prettyPrint(a)}`;
+  if ('unit' in e)
+    return 'unit' in a
+    ? (e.unit.equals(a.unit) ? null : `expected ${prettyPrint(e)}, got ${prettyPrint(a)}`)
+    : `expected unit, got ${prettyPrint(a)}`;
 
   if ('symbol' in e)
     return 'symbol' in a

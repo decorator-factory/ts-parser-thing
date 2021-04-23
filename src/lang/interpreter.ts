@@ -3,7 +3,6 @@ import { makeParser, unparse } from "./parser";
 import {
   applyFunction,
   asFun,
-  asInt as asInt,
   asStr,
   asStrOrSymb,
   asTable,
@@ -13,7 +12,6 @@ import {
   interpret,
   Native,
   NativeOk,
-  Int,
   Partial,
   prettyPrint,
   renderRuntimeError,
@@ -22,8 +20,10 @@ import {
   Symbol,
   Table,
   Value,
-  asDecOrInt,
-  Dec,
+  Unit,
+  asUnit,
+  DimensionMismatch,
+  NotInDomain,
 } from "./runtime";
 import { Map } from "immutable";
 import { lex, Tok } from "./lexer";
@@ -31,6 +31,9 @@ import { TokenParser, TokenStream } from "../language";
 
 import { Either, Err, Ok } from "../either";
 import * as Ei from '../either';
+import { dimEq, neutralDimension, populateDim } from "./units";
+import Fraction from "fraction.js";
+import Big from "big.js";
 
 
 
@@ -346,16 +349,6 @@ const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
 }));
 
 
-const ModuleInt = _makeModule("Int", Map({
-  '=': _binOp('=', asInt, asInt, (a, b) => Ok(Bool(a === b))),
-  '!=': _binOp('!=', asInt, asInt, (a, b) => Ok(Bool(a !== b))),
-  '<': _binOp('<', asInt, asInt, (a, b) => Ok(Bool(a < b))),
-  '>': _binOp('>', asInt, asInt, (a, b) => Ok(Bool(a > b))),
-  '>=': _binOp('>=', asInt, asInt, (a, b) => Ok(Bool(a >= b))),
-  '<=': _binOp('<=', asInt, asInt, (a, b) => Ok(Bool(a <= b))),
-}));
-
-
 const ModuleStr = _makeModule("Str", Map({
   '=': _binOp('=', asStr, asStr, (a, b) => Ok(Bool(a === b))),
   '!=': _binOp('!=', asStr, asStr, (a, b) => Ok(Bool(a !== b))),
@@ -385,6 +378,13 @@ const ModuleRefl = (h: EnvHandle) => _makeModule("Refl", Map({
 }))
 
 
+const asNeutral = (v: Value): Partial<Big> =>
+  Ei.flatMap(asUnit(v), a =>
+    dimEq(a.dim, neutralDimension)
+      ? Ok(a.value)
+      : Err(DimensionMismatch(a.dim, neutralDimension)));
+
+
 const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
 
   const _fallback = _binOpId('|?', (primaryV, fallbackV) =>
@@ -406,21 +406,31 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
   return {
     parent,
     names: Map({
-      'div': _binOp('div', asInt, asInt, (a, b) => Ok(Int(a / b))),
-      '%': _binOp('%', asInt, asInt, (a, b) => Ok(Int(a % b))),
+      '+': _binOp('+', asUnit, asUnit, (a, b) => {
+        const rv = a.add(b);
+        if (!rv)
+          return Err(DimensionMismatch(a.dim, b.dim));
+        return Ok(Unit(rv));
+      }),
+      '-': _binOp('-', asUnit, asUnit, (a, b) => {
+        const rv = a.sub(b);
+        if (!rv)
+          return Err(DimensionMismatch(a.dim, b.dim));
+        return Ok(Unit(rv));
+      }),
+      '*': _binOp('*', asUnit, asUnit, (a, b) => Ok(Unit(a.mul(b)))),
+      '/': _binOp('/', asUnit, asUnit, (a, b) => {
+        const rv = a.div(b);
+        if (!rv)
+          return Err(NotInDomain('non-zero numbers', Unit(b), 'division'));
+        return Ok(Unit(rv));
+      }),
 
-      '+': _binOp('+', asInt, asInt, (a, b) => Ok(Int(a + b))),
-      '-': _binOp('-', asInt, asInt, (a, b) => Ok(Int(a - b))),
-      '*': _binOp('*', asInt, asInt, (a, b) => Ok(Int(a * b))),
-      '^': _binOp('^', asInt, asInt, (a, b) => Ok(Int(a ** b))),
+      'meters': Native('meters', input => Ei.map(asNeutral(input), v => Unit(v, {'L': new Fraction(1)}))),
+      'kilograms': Native('kilograms', input => Ei.map(asNeutral(input), v => Unit(v, {'M': new Fraction(1)}))),
+      'seconds': Native('seconds', input => Ei.map(asNeutral(input), v => Unit(v, {'T': new Fraction(1)}))),
 
-      '+.': _binOp('+.', asDecOrInt, asDecOrInt, (a, b) => Ok(Dec(a.add(b)))),
-      '-.': _binOp('-.', asDecOrInt, asDecOrInt, (a, b) => Ok(Dec(a.sub(b)))),
-      '*.': _binOp('*.', asDecOrInt, asDecOrInt, (a, b) => Ok(Dec(a.mul(b)))),
-      '^.': _binOp('^.', asDecOrInt, asDecOrInt, (a, b) => Ok(Dec(a.pow(b.toNumber())))),
-      '/.': _binOp('/.', asDecOrInt, asDecOrInt, (a, b) => Ok(Dec(a.div(b)))),
-
-      '++': _binOp('-', asStr, asStr, (a, b) => Ok(Str(a + b))),
+      '++': _binOp('++', asStr, asStr, (a, b) => Ok(Str(a + b))),
       '<<': _binOpId('<<', (a, b) => Ok(compose(a, b))),
       '>>': _binOpId('>>', (a, b) => Ok(compose(b, a))),
       '|>': _binOpId('|>', (a, f, env) => applyFunction(f, a, env)),
@@ -432,7 +442,6 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
       'fallback': _fallback,
       '|?': _fallback,
 
-      'Int': ModuleInt,
       'Str': ModuleStr,
 
       'Refl': ModuleRefl(h),

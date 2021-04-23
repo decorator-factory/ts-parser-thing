@@ -14,6 +14,8 @@ const runCode = (() => {
     'missingKey': 'missing key',
     'unexpectedType': 'unexpected type',
     'undefinedName': 'name not defined',
+    'dimensionMismatch': 'dimension mismatch',
+    'notInDomain': 'value not in domain',
   }[k]);
 
   const printErrorDetails = (e: RuntimeError): string => {
@@ -23,7 +25,11 @@ const runCode = (() => {
       case 'undefinedName':
         return e.details.name;
       case 'unexpectedType':
-        return `expected ${e.details.expected}, got ${prettyPrint(e.details.got, colors)}`
+        return `expected ${e.details.expected}, got ${prettyPrint(e.details.got, colors)}`;
+      case 'dimensionMismatch':
+        return `between ${JSON.stringify(e.details.left)} and ${JSON.stringify(e.details.right)}`;
+      case 'notInDomain':
+        return `value ${prettyPrint(e.details.value, colors)} is outside the domain (${e.details.domain}), context: ${e.details.ctx}`;
     }
   };
 
