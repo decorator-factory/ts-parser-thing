@@ -3,7 +3,6 @@ import { ColorHandle } from './color';
 
 export type Tok =
   | 'name'
-  | 'int'
   | 'dec'
   | 'lp'
   | 'rp'
@@ -53,8 +52,7 @@ const re = makeRegexp(
   ['col',       /:/                            ],
   ['comma',     /,/                            ],
   ['name',      /(?![0-9?!])[a-zA-Z_0-9?!]+/   ],
-  ['dec',       /[-+]?\d+\.\d+(e[-+]\d+)?/     ],
-  ['int',       /[-+]?(?:0|[1-9][0-9]*)/       ],
+  ['dec',       /[-+]?\d+(\.\d+)?(e[-+]\d+)?/  ],
   ['dot',       /\.[^-+=*/%!|&^$><?.]/         ],
   ['op',        /[-+=*/%!|&^$><?.]+/           ],
   ['backtick',  /`/                            ],
