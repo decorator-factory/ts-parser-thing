@@ -1,7 +1,7 @@
 import { Lang, TokenParser } from '../language'
 import * as Comb from '../combinators'
 import { Tok } from './lexer'
-import { Op, Ops, Expr, ParseOptions, Lam, App, Name, Int, Str, Table, Symbol, IfThenElse, ArgSingle, LamArg, ArgTable, LamT, Dec } from './ast'
+import { Op, Ops, Expr, ParseOptions, Lam, App, Name, Str, Table, Symbol, IfThenElse, ArgSingle, LamArg, ArgTable, LamT, Dec } from './ast'
 import { shuntingYard } from './shunting-yard'
 import { ColorHandle, identityColorHandle } from './color';
 import Big from 'big.js';
@@ -27,9 +27,6 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
 
 
   const name = L.reading('name', Name);
-
-
-  const intLiteral = L.reading('int', s => Int(BigInt(s)));
 
 
   const decLiteral = L.reading('dec', s => Dec(new Big(s)));
@@ -121,7 +118,6 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
   // if you surround it with parentheses
   const atomic: P<Expr> =
     Comb.lazy(() => operatorSection)
-    .or(intLiteral)
     .or(decLiteral)
     .or(stringLiteral)
     .or(name)
@@ -265,8 +261,7 @@ export const unparse = (expr: Expr, col: ColorHandle = identityColorHandle, dept
 
   switch (expr.tag) {
     case 'name': return col.name(isIdentifier(expr.name) ? expr.name : `(${expr.name})`);
-    case 'int': return col.num(`${expr.value}`.replace('n', ''));
-    case 'dec': return col.num(expr.value.mod(1).eq(0) ? expr.value.toString() + '.0' : expr.value.toString());
+    case 'dec': return col.num(expr.value.toString());
     case 'str': return col.str(JSON.stringify(expr.value));
     case 'symbol': return col.constant(':' + expr.value);
     case 'table': return (
