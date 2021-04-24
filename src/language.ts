@@ -1,5 +1,4 @@
 import { Parser, Either, Ok, Err, parser } from './parser';
-import * as Comb from './combinators';
 import { ParseError } from './either';
 
 
@@ -42,10 +41,10 @@ export class Lang<T extends string>{
 
 export const consume =
   <T extends string, A>(
-    parser: TokenParser<T, A>,
+    tokenParser: TokenParser<T, A>,
     source: TokenStream<T>
   ): Either<ParseError, A> => {
-    const ea = parser.parse(source);
+    const ea = tokenParser.parse(source);
     if ('err' in ea)
       return Err(ea.err);
     const [a, rest] = ea.ok;

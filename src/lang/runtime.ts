@@ -48,7 +48,8 @@ export const Bool = (bool: boolean): Value => ({bool});
 export const Table = (table: Map<string, Value>): Value => ({table});
 export const Fun = (fun: LamT, closure: Env): Value => ({fun, closure});
 export const Native = (name: LazyName, native: (v: Value, e: Env) => Partial<Value>): Value => ({name, native});
-export const NativeOk = (name: LazyName, fn: (v: Value, e: Env) => Value): Value => ({name, native: (v, e) => Ok(fn(v, e))});
+export const NativeOk = (name: LazyName, fn: (v: Value, e: Env) => Value): Value =>
+  ({name, native: (v, e) => Ok(fn(v, e))});
 
 
 export type RuntimeError =
@@ -139,7 +140,12 @@ export const asFun = (v: Value): Partial<FunT> => {
 };
 
 
-export const envRepr = (env: Env, keys: string[], col: ColorHandle = identityColorHandle, depth: number = 0): string => {
+export const envRepr = (
+  env: Env,
+  keys: string[],
+  col: ColorHandle = identityColorHandle,
+  depth: number = 0
+): string => {
   if (depth > 3)
     return col.punctuation('{') + '...' + col.punctuation('}');
 
@@ -153,36 +159,36 @@ export const envRepr = (env: Env, keys: string[], col: ColorHandle = identityCol
 }
 
 
-export const prettyPrint = (v: Value, col: ColorHandle = identityColorHandle, depth: number = 0): string => {
+export const prettyPrint = (value: Value, col: ColorHandle = identityColorHandle, depth: number = 0): string => {
   if (depth > 12)
     return "...";
 
-  if ('str' in v)
-    return col.str(JSON.stringify(v.str));
+  if ('str' in value)
+    return col.str(JSON.stringify(value.str));
 
-  else if ('unit' in v)
-    return col.num(v.unit.toString());
+  else if ('unit' in value)
+    return col.num(value.unit.toString());
 
-  else if ('fun' in v)
-    return (v.fun.capturedNames.length === 0)
-      ? `${unparse(v.fun, col, depth)}`
-      : `${unparse(v.fun, col, depth)} where ${envRepr(v.closure, v.fun.capturedNames, col, depth+1)}`;
+  else if ('fun' in value)
+    return (value.fun.capturedNames.length === 0)
+      ? `${unparse(value.fun, col, depth)}`
+      : `${unparse(value.fun, col, depth)} where ${envRepr(value.closure, value.fun.capturedNames, col, depth+1)}`;
 
-  else if ('native' in v)
-    return col.constant(typeof v.name === 'string' ? v.name : v.name());
+  else if ('native' in value)
+    return col.constant(typeof value.name === 'string' ? value.name : value.name());
 
-  else if ('symbol' in v)
-    return col.constant(':' + v.symbol);
+  else if ('symbol' in value)
+    return col.constant(':' + value.symbol);
 
-  else if ('bool' in v)
-    return col.constant(`${v.bool}`);
+  else if ('bool' in value)
+    return col.constant(`${value.bool}`);
 
   else
-    return v.table.size === 0
+    return value.table.size === 0
       ? col.constant('{}')
       : (
         col.punctuation('{')
-        + [...v.table.entries()].map(([k, v]) => `${col.name(k)}: ${prettyPrint(v, col, depth + 1)}`).join(', ')
+        + [...value.table.entries()].map(([k, v]) => `${col.name(k)}: ${prettyPrint(v, col, depth + 1)}`).join(', ')
         + col.punctuation('}')
       );
 };

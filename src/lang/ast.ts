@@ -120,7 +120,7 @@ const _getCapturedNames = (expr: Expr, exclude: string[]): string[] => {
 
 
 const unique =
-  <T>(arr: ReadonlyArray<T>): Array<T> =>
+  <T>(arr: ReadonlyArray<T>): T[] =>
   [...new Set(arr)];
 
 const getCapturedNames =

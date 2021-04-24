@@ -1,7 +1,9 @@
 import { Lang, TokenParser } from '../language'
 import * as Comb from '../combinators'
 import { Tok } from './lexer'
-import { Op, Ops, Expr, ParseOptions, Lam, App, Name, Str, Table, Symbol, IfThenElse, ArgSingle, LamArg, ArgTable, LamT, Dec } from './ast'
+import {
+  Op, Ops, Expr, ParseOptions, Lam, App, Name, Str, Table, Symbol, IfThenElse, ArgSingle, LamArg, ArgTable, LamT, Dec
+} from './ast'
 import { shuntingYard } from './shunting-yard'
 import { ColorHandle, identityColorHandle } from './color';
 import Big from 'big.js';
@@ -84,7 +86,7 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
         ),
         L.oneOf('rbr'),
       );
-      return _tablePatHelper.map(ArgTable);``
+      return _tablePatHelper.map(ArgTable);
     })();
 
     const parameter = nameParameter.or(tableParameter);
@@ -191,7 +193,7 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
   const exprEnd = Comb.maybe(L.oneOf('semicolon'));
 
   // Entry point
-  const exprParser_ = lambda.or(infixOperatorExpression).neht(exprEnd);
+  const exprParser_ = lambda.or(infixOperatorExpression).neht(exprEnd); // tslint:disable-line:variable-name
 
 
   return [exprParser_, newOpts => {options = newOpts}];

@@ -4,7 +4,7 @@ import Fraction from 'fraction.js';
 // https://en.wikipedia.org/wiki/SI_base_unit#Definitions
 export const dimensionNames = ['T', 'L', 'M', 'I', 'Th', 'N', 'J'] as const;
 
-//@ts-ignore
+// @ts-ignore
 export const neutralDimension: Dimension = Object.fromEntries(dimensionNames.map(k => [k, new Fraction(0)]))
 
 export type DimensionName = (typeof dimensionNames)[any];

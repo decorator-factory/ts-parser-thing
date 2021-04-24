@@ -25,7 +25,7 @@ export const shuntingYard = (
   ops: Ops,
   options: ParseOptions
 ): Expr => {
-  // This algorithm is pretty complex. Wikipedia can explain it better than I.s
+  // This algorithm is pretty complex. Wikipedia can explain it better than I.
   // https://en.wikipedia.org/wiki/Shunting-yard_algorithm
   const exprStack: Expr[] = [];
   const opStack: Op[] = [];

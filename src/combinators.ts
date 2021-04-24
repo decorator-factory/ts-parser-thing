@@ -33,7 +33,7 @@ export const concat =
     prev: Parser<S, AS>,
     next: Parser<S, A>,
   ): Parser<S, [...AS, A]> =>
-    prev.flatMap(a_s => next.map(a => [...a_s, a]));
+    prev.flatMap(as => next.map(a => [...as, a]));
 
 export const pair =
     <S, A, B>(
@@ -47,7 +47,7 @@ export const concats =
       ...rest: { [I in keyof AS]: Parser<S, AS[I]> }
     ): Parser<S, AS> =>
       rest.reduce(
-        (acc, next) => acc.flatMap(a_s => next.map(a => [...a_s, a])),
+        (acc, next) => acc.flatMap(as => next.map(a => [...as, a])),
         always([])
       );
 
@@ -69,9 +69,9 @@ export const manyAtLeast =
     failMsg: string
   ): Parser<S, A[]> =>
     many(single)
-    .flatMap(a_s =>
-      a_s.length >= atLeast
-      ? always(a_s)
+    .flatMap(as =>
+      as.length >= atLeast
+      ? always(as)
       : fail(failMsg))
 
 export const maybe =
