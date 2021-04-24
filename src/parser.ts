@@ -57,7 +57,7 @@ export class Parser<S, A> {
   /**
    * If this parser fails to match, produce an unrecoverable error
    */
-  orBail(msg: string): Parser<S, any> {
+  orBail(msg: string): Parser<S, A> {
     return this.or( parser(_ => ({err: {recoverable: false, msg}})) );
   }
 

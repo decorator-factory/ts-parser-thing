@@ -1,3 +1,11 @@
+/**
+ * This module defines some useful combinators for parsing.
+ *
+ * The action performed by each combinator should hopefully be
+ * clear from its name and type.
+ */
+
+
 import { ParseError } from './either';
 import { Parser, Ok, Err, parser } from './parser';
 
@@ -36,20 +44,20 @@ export const concat =
     prev.flatMap(as => next.map(a => [...as, a]));
 
 export const pair =
-    <S, A, B>(
-      left: Parser<S, A>,
-      right: Parser<S, B>,
-    ): Parser<S, [A, B]> =>
-      left.flatMap(a => right.map(b => [a, b]));
+  <S, A, B>(
+    left: Parser<S, A>,
+    right: Parser<S, B>,
+  ): Parser<S, [A, B]> =>
+    left.flatMap(a => right.map(b => [a, b]));
 
 export const concats =
-    <S, AS extends any[]>(
-      ...rest: { [I in keyof AS]: Parser<S, AS[I]> }
-    ): Parser<S, AS> =>
-      rest.reduce(
-        (acc, next) => acc.flatMap(as => next.map(a => [...as, a])),
-        always([])
-      );
+  <S, AS extends any[]>(
+    ...rest: { [I in keyof AS]: Parser<S, AS[I]> }
+  ): Parser<S, AS> =>
+    rest.reduce(
+      (acc, next) => acc.flatMap(as => next.map(a => [...as, a])),
+      always([])
+    );
 
 export const lazy =
   <S, A>(

@@ -1,14 +1,20 @@
 import * as readline from 'readline';
 import { Interpreter, LangError } from './lang/interpreter';
-import { computeDiff, prettyPrint, RuntimeError, Value } from './lang/runtime';
+import { prettyPrint, RuntimeError, Value } from './lang/runtime';
 import { ColorHandle, identityColorHandle } from './lang/color';
-import { highlightCode } from './lang/lexer';
 import chalk from 'chalk';
 import { Either, Err, Ok } from './either';
 import * as fs from 'fs';
 
 
-
+/**
+ * Given an interpreter and source code, try to run the code in the
+ * interpreter. In case of error, format the error as a string.
+ * Otherwise, return an array of values, where each value is the result
+ * of evaluating an expression from the source code.
+ *
+ * e.g. running the code `1; 2; 3` will return Ok([Unit(1), Unit(2), Unit(3)])
+ */
 const runCode = (() => {
   const printErrorType = (k: RuntimeError['type']): string => ({
     'missingKey': 'missing key',
@@ -58,6 +64,9 @@ const runCode = (() => {
 })();
 
 
+/**
+ * Color handle chosen depending on the terminal capabilities
+ */
 const colors = (() => {
   const colorsRgb: ColorHandle = {
     ...identityColorHandle,
@@ -146,10 +155,12 @@ if (process.argv[2] === 'repl') {
   simplyRunCode(sourceCode);
 } else if (process.argv[2] === 'file') {
   const filename = process.argv[3];
-  if (!filename)
+  if (!filename){
     console.error('You must provide a filename');
-  const sourceCode = fs.readFileSync(filename, 'utf-8');
-  simplyRunCode(sourceCode);
+  } else {
+    const sourceCode = fs.readFileSync(filename, 'utf-8');
+    simplyRunCode(sourceCode);
+  }
 } else {
-  console.log('Only `npm run repl`, `npm run stdin` and `npm run file` are supported for now');
+  console.log('Only `npm start repl`, `npm start stdin` and `npm start file` are supported for now');
 }

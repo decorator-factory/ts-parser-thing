@@ -1,3 +1,15 @@
+/**
+ * This module is responsible for defining the Unit type and
+ * utilities for working with its instances. A Unit is a value
+ * consisting of a dimension and a numeric value.
+ *
+ * A dimension is simply a record mapping SI base units to their
+ * respective exponents. For example, to create a Unit representing
+ * 42 kg*m/s^2 you write:
+ *
+ * new Unit(42, {M: new Fraction(1), L: new Fraction(1), T: new Fraction(-2)});
+ */
+
 import Big from 'big.js';
 import Fraction from 'fraction.js';
 

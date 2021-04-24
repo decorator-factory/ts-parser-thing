@@ -1,3 +1,10 @@
+/**
+ * This module is responsible for specifying the data structures
+ * related to how a program is parsed and represented as an
+ * Abstract Syntax Tree.
+ */
+
+
 import Big from 'big.js';
 
 
@@ -11,36 +18,7 @@ export type Expr =
   | {tag: 'ite', if: Expr, then: Expr, else: Expr}
   | LamT
 
-
-export type LamArg =
-  | {single: string}
-  | {table: [string, LamArg][]}
-
-export const ArgSingle = (single: string): LamArg => ({single});
-export const ArgTable = (table: [string, LamArg][]): LamArg => ({table});
-
-
-export type LamT =
-  {tag: 'lam', arg: LamArg, expr: Expr, capturedNames: string[]};
-
-export type Op =
-  | {type: 'infix', value: string}
-  | {type: 'expr', expr: Expr}
-
-export type Ops = {initial: Expr, chunks: [Op, Expr][]}
-
-export type Priority = {strength: number, direction: 'left' | 'right'};
-export const Prio = (
-  strength: number,
-  direction: 'left' | 'right'
-): Priority =>
-  ({strength, direction});
-
-export type ParseOptions = {
-  priorities: Record<string, Priority>,
-  backtickPriority: Priority,  // priority for (a `f` b `g` c)
-  defaultPriority: Priority
-}
+// Smart constructors for Expr:
 
 export const App =
   (fun: Expr, arg: Expr): Expr =>
@@ -66,22 +44,58 @@ export const Table =
   (pairs: [string, Expr][]): Expr =>
     ({tag: 'table', pairs});
 
-const namesInArg = (arg: LamArg): string[] =>
-  'single' in arg? [arg.single] : arg.table.flatMap(([_src, target]) => namesInArg(target));
-
 export const Lam =
   (arg: LamArg, expr: Expr): Expr =>
     ({
       tag: 'lam',
       arg,
       expr,
-      capturedNames: getCapturedNames(expr, namesInArg(arg))
+      capturedNames: getCapturedNames(expr, extractNamesFromArg(arg))
     });
 
 export const IfThenElse =
 (ifE: Expr, thenE: Expr, elseE: Expr): Expr =>
   ({tag: 'ite', if: ifE, then: thenE, else: elseE});
 
+
+// Types related to lambdas:
+
+export type LamArg =
+  | {single: string}
+  | {table: [string, LamArg][]}
+
+export const ArgSingle = (single: string): LamArg => ({single});
+export const ArgTable = (table: [string, LamArg][]): LamArg => ({table});
+
+export type LamT =
+  {tag: 'lam', arg: LamArg, expr: Expr, capturedNames: string[]};
+
+
+// Types used by the parser:
+
+export type Op =
+  | {type: 'infix', value: string}
+  | {type: 'expr', expr: Expr}
+
+export type Ops = {initial: Expr, chunks: [Op, Expr][]}
+
+export type Priority = {strength: number, direction: 'left' | 'right'};
+export const Prio = (
+  strength: number,
+  direction: 'left' | 'right'
+): Priority =>
+  ({strength, direction});
+
+export type ParseOptions = {
+  priorities: Record<string, Priority>,
+  backtickPriority: Priority,  // priority for `f` and `g` in (a `f` b `g` c)
+  defaultPriority: Priority
+}
+
+
+
+const extractNamesFromArg = (arg: LamArg): string[] =>
+  'single' in arg? [arg.single] : arg.table.flatMap(([_src, target]) => extractNamesFromArg(target));
 
 const _getCapturedNames = (expr: Expr, exclude: string[]): string[] => {
   switch (expr.tag) {

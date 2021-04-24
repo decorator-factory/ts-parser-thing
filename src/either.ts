@@ -1,3 +1,8 @@
+/**
+ * This module defines the Either type. It represents a value that is either
+ * an 'Ok' value (successful result) or an 'Error' value (unsuccessful result).
+ */
+
 export type Either<E, A> = Readonly<{ok: A} | {err: E}>;
 
 export const Ok = <E, A>(ok: A): Either<E, A> => ({ok});

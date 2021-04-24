@@ -63,6 +63,7 @@ const re = makeRegexp(
 
 
 type LexOptions = { includeWs: boolean };
+
 export const lex = (src: string, options: LexOptions = { includeWs: false }): TokenStream<Tok> => {
   const tokens: TokenStream<Tok> = [];
   let latestPos = 0;

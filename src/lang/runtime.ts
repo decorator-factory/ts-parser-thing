@@ -1,13 +1,11 @@
-import { Expr, LamArg, LamT, Prio } from './ast';
-import { makeParser, unparse } from './parser';
+import { Expr, LamArg, LamT } from './ast';
+import { unparse } from './parser';
 
 import { Ok, Err, Either } from '../either';
 import * as Ei from '../either';
 
 import { Map } from 'immutable';
 import { ColorHandle, identityColorHandle } from './color';
-import Big from 'big.js';
-import Fraction from 'fraction.js';
 import { Dimension, makeUnit, Unit as UnitType, UnitSource } from './units';
 
 

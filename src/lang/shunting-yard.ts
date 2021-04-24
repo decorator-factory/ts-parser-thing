@@ -1,3 +1,13 @@
+/**
+ * The shunting yard algorithm is an algorithm for parsing
+ * infix operator notation into reverse polish notation (and
+ * consequently into a tree structure).
+ *
+ * You can find a detailed explanation of the algorithm here:
+ * https://en.wikipedia.org/wiki/Shunting-yard_algorithm
+ */
+
+
 import { Op, Ops, Expr, App, Name, ParseOptions, Priority } from './ast';
 
 
@@ -25,8 +35,6 @@ export const shuntingYard = (
   ops: Ops,
   options: ParseOptions
 ): Expr => {
-  // This algorithm is pretty complex. Wikipedia can explain it better than I.
-  // https://en.wikipedia.org/wiki/Shunting-yard_algorithm
   const exprStack: Expr[] = [];
   const opStack: Op[] = [];
 
