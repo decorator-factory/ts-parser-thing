@@ -152,7 +152,7 @@ export const envRepr = (
   const lines: string[] = [];
   for (const key of keys){
     const v = tryLookupName(key, env);
-    const vs = v === null ? "?" : prettyPrint(v, col, depth+1);
+    const vs = v === null ? '?' : prettyPrint(v, col, depth+1);
     lines.push(`${key}: ${vs}`);
   }
   return col.punctuation('{') + lines.join(', ') + col.punctuation('}');
@@ -161,7 +161,7 @@ export const envRepr = (
 
 export const prettyPrint = (value: Value, col: ColorHandle = identityColorHandle, depth: number = 0): string => {
   if (depth > 12)
-    return "...";
+    return '...';
 
   if ('str' in value)
     return col.str(JSON.stringify(value.str));

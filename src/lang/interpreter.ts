@@ -1,5 +1,5 @@
-import { Expr, ParseOptions, Prio, Priority } from "./ast";
-import { makeParser, unparse } from "./parser";
+import { Expr, ParseOptions, Prio, Priority } from './ast';
+import { makeParser, unparse } from './parser';
 import {
   applyFunction,
   asFun,
@@ -24,16 +24,16 @@ import {
   asUnit,
   DimensionMismatch,
   NotInDomain,
-} from "./runtime";
-import { Map } from "immutable";
-import { lex, Tok } from "./lexer";
-import { TokenParser, TokenStream } from "../language";
+} from './runtime';
+import { Map } from 'immutable';
+import { lex, Tok } from './lexer';
+import { TokenParser, TokenStream } from '../language';
 
-import { Either, Err, Ok } from "../either";
+import { Either, Err, Ok } from '../either';
 import * as Ei from '../either';
-import { dimEq, neutralDimension, populateDim } from "./units";
-import Fraction from "fraction.js";
-import Big from "big.js";
+import { dimEq, neutralDimension, populateDim } from './units';
+import Fraction from 'fraction.js';
+import Big from 'big.js';
 
 
 
@@ -349,7 +349,7 @@ const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
 }));
 
 
-const ModuleStr = _makeModule("Str", Map({
+const ModuleStr = _makeModule('Str', Map({
   '=': _binOp('=', asStr, asStr, (a, b) => Ok(Bool(a === b))),
   '!=': _binOp('!=', asStr, asStr, (a, b) => Ok(Bool(a !== b))),
   'lower?': Native('lower?', value => Ei.map(asStr(value), s => Bool(s.toLowerCase() === s))),
@@ -358,7 +358,7 @@ const ModuleStr = _makeModule("Str", Map({
 }));
 
 
-const ModuleRefl = (h: EnvHandle) => _makeModule("Refl", Map({
+const ModuleRefl = (h: EnvHandle) => _makeModule('Refl', Map({
   'lex': Native('lex', (v, e) =>
     Ei.map(asStr(v), source => {
       const stream  = lex(source);

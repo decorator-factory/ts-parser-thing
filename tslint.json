@@ -5,6 +5,7 @@
             "options": [120]
         },
         "max-classes-per-file": {"severity": "off"},
-        "no-console": {"severity": "off"}
+        "no-console": {"severity": "off"},
+        "quotemark": {"options": "single"}
     }
 }

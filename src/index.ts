@@ -102,8 +102,8 @@ const readEvalPrintLoop = () => {
 
   // Gracefully handle CTRL+C
   rl.on('SIGINT', () => {
-    rl.question("Exit [y/n]? ", answer => {
-      if (["y", "Y", "yes"].includes(answer))
+    rl.question('Exit [y/n]? ', answer => {
+      if (['y', 'Y', 'yes'].includes(answer))
         process.exit();
       else
         prompt();
