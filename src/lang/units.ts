@@ -102,6 +102,38 @@ class Unit {
     return new Unit(this.value.mul(unit.value), newDim);
   }
 
+  public pow (...other: UnitSource): Unit | null {
+    const unit = makeUnit(...other);
+
+    if ( this.value.lt(0)
+      || this.value.eq(0) && unit.value.eq(0)
+      || !dimEq(unit.dim, neutralDimension)
+      || !unit.value.round().eq(unit.value))
+      return null;
+
+    const newDim: any = {}
+    for (const name of dimensionNames)
+      newDim[name] = this.dim[name].mul(unit.value.toNumber())
+
+    return new Unit(this.value.pow(unit.value.toNumber()), newDim);
+  }
+
+  public root (...other: UnitSource): Unit | null {
+    const unit = makeUnit(...other);
+
+    if ( unit.value.eq(0)
+      || !dimEq(unit.dim, neutralDimension)
+      || !unit.value.round().eq(unit.value)
+      || this.value.lt(0) && unit.value.toNumber() % 2 !== 0)
+      return null;
+
+    const newDim: any = {}
+    for (const name of dimensionNames)
+      newDim[name] = this.dim[name].div(unit.value.toNumber())
+
+    return new Unit(Math.pow(this.value.toNumber(), (1 / unit.value.toNumber())), newDim);
+  }
+
   public div (...other: UnitSource): Unit | null {
     const unit = makeUnit(...other);
 

@@ -418,6 +418,26 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
           return Err(NotInDomain('non-zero numbers', Unit(b), 'division'));
         return Ok(Unit(rv));
       }),
+      '^': _binOp('^', asUnit, asNeutral, (a, b) => {
+        const rv = a.pow(b);
+        if (!rv)
+          return Err(NotInDomain(
+            'can only compute x^y if y is an integer neutral unit and x is not negative',
+            Table(Map({x: Unit(a), y: Unit(b)})),
+            'exponentiation',
+          ));
+        return Ok(Unit(rv));
+      }),
+      '^/': _binOp('^/', asUnit, asNeutral, (a, b) => {
+        const rv = a.root(b);
+        if (!rv)
+          return Err(NotInDomain(
+            'can only compute x^(1/y) if y is a non-zero integer neutral unit and x is not negative (unless y is odd)',
+            Table(Map({x: Unit(a), y: Unit(b)})),
+            'exponentiation',
+          ));
+        return Ok(Unit(rv));
+      }),
 
       'meters': Native('meters', input => Ei.map(asNeutral(input), v => Unit(v, {'L': new Fraction(1)}))),
       'kilograms': Native('kilograms', input => Ei.map(asNeutral(input), v => Unit(v, {'M': new Fraction(1)}))),
