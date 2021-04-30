@@ -42,6 +42,9 @@ const DEFAULT_PARSER_OPTIONS = {
     '+': Prio(6, 'left'),
     '-': Prio(6, 'left'),
     '*': Prio(8, 'left'),
+    '/': Prio(8, 'left'),
+    '^': Prio(9, 'left'),
+    '^/': Prio(9, 'left'),
 
     '++': Prio(10, 'left'),
     '<<': Prio(3, 'right'),

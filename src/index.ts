@@ -5,6 +5,7 @@ import { ColorHandle, identityColorHandle } from './lang/color';
 import chalk from 'chalk';
 import { Either, Err, Ok } from './either';
 import * as fs from 'fs';
+import { renderDim } from './lang/units';
 
 
 /**
@@ -33,7 +34,7 @@ const runCode = (() => {
       case 'unexpectedType':
         return `expected ${e.details.expected}, got ${prettyPrint(e.details.got, colors)}`;
       case 'dimensionMismatch':
-        return `between ${JSON.stringify(e.details.left)} and ${JSON.stringify(e.details.right)}`;
+        return `between ${renderDim(e.details.left)} and ${renderDim(e.details.right)}`;
       case 'notInDomain':
         return `value ${prettyPrint(e.details.value, colors)} is outside the domain (${e.details.domain}), context: ${e.details.ctx}`;
     }
