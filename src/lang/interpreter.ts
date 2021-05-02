@@ -35,6 +35,8 @@ import { dimEq, neutralDimension, populateDim } from './units';
 import Fraction from 'fraction.js';
 import Big from 'big.js';
 
+import * as fs from 'fs';
+
 
 
 const DEFAULT_PARSER_OPTIONS = {
@@ -269,6 +271,20 @@ const _binOpId = (
   _binOp(name, Ok, Ok, f);
 
 
+const _readLine = (): string => {
+  const CHUNK_SIZE = 1024;
+  const buf = Buffer.alloc(CHUNK_SIZE);
+  let rv = '';
+  while (true) {
+    const bytesRead = fs.readSync(0, buf, 0, CHUNK_SIZE, null);
+    rv += buf.toString('utf-8', 0, bytesRead);
+    if (bytesRead < CHUNK_SIZE)
+      break;
+  }
+  return rv.slice(0, -1);  // remove \n at the end
+}
+
+
 const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
   'import': NativeOk(
     'IO:import',
@@ -289,6 +305,11 @@ const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
       console.log(s);
       return Ok(unit);
     })
+  ),
+
+  'readLine': Native(
+    'IO:readLine',
+    () => Ok(Str(_readLine()))
   ),
 
   'debug': NativeOk(

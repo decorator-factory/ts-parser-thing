@@ -1,0 +1,5 @@
+IO:define :$= (IO:define);
+
+:line $= IO:readLine {};
+
+IO:log line;
