@@ -399,7 +399,7 @@ const asNeutral = (v: Value): Partial<Big> =>
   Ei.flatMap(asUnit(v), a =>
     dimEq(a.dim, neutralDimension)
       ? Ok(a.value)
-      : Err(DimensionMismatch(a.dim, neutralDimension)));
+      : Err(DimensionMismatch({left: a.dim, right: neutralDimension})));
 
 
 const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
@@ -413,7 +413,7 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
           return primaryResult;
 
         const {err} = primaryResult;
-        if (err.type !== 'missingKey')
+        if (err.tag !== 'MissingKey')
           return Err(err);
         return applyFunction(fallbackV, key, env);
       }
@@ -426,40 +426,38 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
       '+': _binOp('+', asUnit, asUnit, (a, b) => {
         const rv = a.add(b);
         if (!rv)
-          return Err(DimensionMismatch(a.dim, b.dim));
+          return Err(DimensionMismatch({left: a.dim, right: b.dim}));
         return Ok(Unit(rv));
       }),
       '-': _binOp('-', asUnit, asUnit, (a, b) => {
         const rv = a.sub(b);
         if (!rv)
-          return Err(DimensionMismatch(a.dim, b.dim));
+          return Err(DimensionMismatch({left: a.dim, right: b.dim}));
         return Ok(Unit(rv));
       }),
       '*': _binOp('*', asUnit, asUnit, (a, b) => Ok(Unit(a.mul(b)))),
       '/': _binOp('/', asUnit, asUnit, (a, b) => {
         const rv = a.div(b);
         if (!rv)
-          return Err(NotInDomain('non-zero numbers', Unit(b), 'division'));
+          return Err(NotInDomain({value: Table(Map({x: Unit(a), y: Unit(b)})), explanation: 'division by zero'}));
         return Ok(Unit(rv));
       }),
       '^': _binOp('^', asUnit, asNeutral, (a, b) => {
         const rv = a.pow(b);
         if (!rv)
-          return Err(NotInDomain(
-            'can only compute x^y if y is an integer neutral unit and x is not negative',
-            Table(Map({x: Unit(a), y: Unit(b)})),
-            'exponentiation',
-          ));
+          return Err(NotInDomain({
+            value: Table(Map({x: Unit(a), y: Unit(b)})),
+            explanation: 'can only compute x^y if y is an integer neutral unit and x is not negative'
+          }));
         return Ok(Unit(rv));
       }),
       '^/': _binOp('^/', asUnit, asNeutral, (a, b) => {
         const rv = a.root(b);
         if (!rv)
-          return Err(NotInDomain(
-            'can only compute x^(1/y) if y is a non-zero integer neutral unit and x is not negative (unless y is odd)',
-            Table(Map({x: Unit(a), y: Unit(b)})),
-            'exponentiation',
-          ));
+          return Err(NotInDomain({
+            value: Table(Map({x: Unit(a), y: Unit(b)})),
+            explanation: 'can only compute x^(1/y) if y is a non-zero integer neutral unit and x is not negative (unless y is odd)',
+          }));
         return Ok(Unit(rv));
       }),
 

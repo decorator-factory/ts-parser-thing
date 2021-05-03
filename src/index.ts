@@ -6,6 +6,7 @@ import chalk from 'chalk';
 import { Either, Err, Ok } from './either';
 import * as fs from 'fs';
 import { renderDim } from './lang/units';
+import { matchExhaustive } from '@practical-fp/union-types';
 
 
 /**
@@ -17,28 +18,22 @@ import { renderDim } from './lang/units';
  * e.g. running the code `1; 2; 3` will return Ok([Unit(1), Unit(2), Unit(3)])
  */
 const runCode = (() => {
-  const printErrorType = (k: RuntimeError['type']): string => ({
-    'missingKey': 'missing key',
-    'unexpectedType': 'unexpected type',
-    'undefinedName': 'name not defined',
-    'dimensionMismatch': 'dimension mismatch',
-    'notInDomain': 'value not in domain',
+  const formatErrorType = (k: RuntimeError['tag']): string => ({
+    'MissingKey': 'missing key',
+    'UnexpectedType': 'unexpected type',
+    'UndefinedName': 'name not defined',
+    'DimensionMismatch': 'dimension mismatch',
+    'NotInDomain': 'value not in domain',
   }[k]);
 
-  const printErrorDetails = (e: RuntimeError): string => {
-    switch (e.type) {
-      case 'missingKey':
-        return e.details.key;
-      case 'undefinedName':
-        return e.details.name;
-      case 'unexpectedType':
-        return `expected ${e.details.expected}, got ${prettyPrint(e.details.got, colors)}`;
-      case 'dimensionMismatch':
-        return `between ${renderDim(e.details.left)} and ${renderDim(e.details.right)}`;
-      case 'notInDomain':
-        return `value ${prettyPrint(e.details.value, colors)} is outside the domain (${e.details.domain}), context: ${e.details.ctx}`;
-    }
-  };
+  const printErrorDetails = (e: RuntimeError): string =>
+    matchExhaustive(e, {
+      MissingKey: key => key,
+      UndefinedName: name => name,
+      UnexpectedType: ({expected, got}) => `expected ${expected}, got ${prettyPrint(got, colors)}`,
+      DimensionMismatch: ({left, right}) => `between ${renderDim(left)} and ${renderDim(right)}`,
+      NotInDomain: ({value, explanation}) => `${value}, ${explanation}`
+    });
 
   const printError = (e: LangError): string => {
     switch (e.type) {
@@ -50,8 +45,8 @@ const runCode = (() => {
         return (
             chalk.red('Runtime error: ')
           + chalk.yellowBright(
-              printErrorType(e.err.type) + ': ' + printErrorDetails(e.err)
-            )
+            formatErrorType(e.err.tag) + ': ' + printErrorDetails(e.err)
+          )
         );
     }
   };

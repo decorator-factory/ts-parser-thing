@@ -7,7 +7,7 @@ import * as Ei from '../either';
 import { Map } from 'immutable';
 import { ColorHandle, identityColorHandle } from './color';
 import { Dimension, makeUnit, Unit as UnitType, UnitSource } from './units';
-import { match, matchExhaustive } from '@practical-fp/union-types';
+import { impl, match, matchExhaustive, Variant } from '@practical-fp/union-types';
 
 
 const tryLookupName = (name: string, env: Env): Value | null => {
@@ -52,46 +52,33 @@ export const NativeOk = (name: LazyName, fn: (v: Value, e: Env) => Value): Value
 
 
 export type RuntimeError =
-  | {type: 'unexpectedType', details: {expected: string, got: Value}}
-  | {type: 'missingKey', details: {key: string}}
-  | {type: 'undefinedName', details: {name: string}}
-  | {type: 'dimensionMismatch', details: {left: Dimension, right: Dimension}}
-  | {type: 'notInDomain', details: {domain: string, value: Value, ctx: string}}
-  ;
-export const UnexpectedType =
-  (expected: string, got: Value): RuntimeError => ({
-    type: 'unexpectedType', details: {expected, got}
-  });
-export const MissingKey =
-  (key: string): RuntimeError => ({
-    type: 'missingKey', details: {key}
-  });
-export const UndefinedName =
-  (name: string): RuntimeError => ({
-    type: 'undefinedName', details: {name}
-  });
-export const DimensionMismatch =
-  (left: Dimension, right: Dimension): RuntimeError => ({
-    type: 'dimensionMismatch', details: {left, right}
-  });
-export const NotInDomain =
-  (domain: string, value: Value, ctx: string): RuntimeError => ({
-    type: 'notInDomain', details: {domain, value, ctx}
-  });
+  | Variant<'UnexpectedType', {expected: string, got: Value}>
+  | Variant<'MissingKey', string>
+  | Variant<'UndefinedName', string>
+  | Variant<'DimensionMismatch', {left: Dimension, right: Dimension}>
+  | Variant<'NotInDomain', {value: Value, explanation: string}>
 
-export const renderRuntimeError = (err: RuntimeError): Value => {
+
+export const {
+  UnexpectedType,
+  MissingKey,
+  UndefinedName,
+  DimensionMismatch,
+  NotInDomain,
+} = impl<RuntimeError>();
+
+
+export const renderRuntimeError = (error: RuntimeError): Value => {
   const details: Record<string, Value> =
-    (err.type === 'unexpectedType')
-    ? {expected: Str(err.details.expected), got: err.details.got}
-    : (err.type === 'missingKey')
-    ? {key: Str(err.details.key)}
-    : (err.type === 'dimensionMismatch')
-    ? {left: Unit(1, err.details.left), right: Unit(1, err.details.right)}
-    : (err.type === 'notInDomain')
-    ? {domain: Str(err.details.domain), value: err.details.value, ctx: Str(err.details.ctx)}
-    : {name: Str(err.details.name)};
+    matchExhaustive(error, {
+      UnexpectedType: ({expected, got}) => ({expected: Str(expected), got}),
+      MissingKey: key => ({key: Str(key)}),
+      UndefinedName: name => ({name: Str(name)}),
+      DimensionMismatch: ({left, right}) => ({left: Unit(1, left), right: Unit(1, right)}),
+      NotInDomain: ({value, explanation}) => ({value, explanation: Str(explanation)})
+    });
   return Table(Map({
-    error: Str(err.type),
+    error: Str(error.tag),
     details: Table(Map(details))
   }));
 };
@@ -102,19 +89,19 @@ export type Partial<A> = Either<RuntimeError, A>;
 
 export const asUnit = (v: Value): Partial<UnitType> => {
   if (!('unit' in v))
-    return Err(UnexpectedType('unit', v));
+    return Err(UnexpectedType({expected: 'unit', got: v}));
   return Ok(v.unit);
 };
 
 export const asStr = (v: Value): Partial<string> => {
   if (!('str' in v))
-    return Err(UnexpectedType('string', v));
+    return Err(UnexpectedType({expected: 'string', got: v}));
   return Ok(v.str);
 };
 
 export const asSymb = (v: Value): Partial<string> => {
   if (!('symbol' in v))
-    return Err(UnexpectedType('symbol', v));
+    return Err(UnexpectedType({expected: 'symbol', got: v}));
   return Ok(v.symbol);
 };
 
@@ -123,18 +110,18 @@ export const asStrOrSymb = (v: Value): Partial<string> => {
     return Ok(v.str);
   if ('symbol' in v)
     return Ok(v.symbol);
-  return Err(UnexpectedType('string|symbol', v));
+  return Err(UnexpectedType({expected: 'string|symbol', got: v}));
 };
 
 export const asTable = (v: Value): Partial<Map<string, Value>> => {
   if (!('table' in v))
-    return Err(UnexpectedType('table', v));
+    return Err(UnexpectedType({expected: 'table', got: v}));
   return Ok(v.table);
 };
 
 export const asFun = (v: Value): Partial<FunT> => {
   if (!('fun' in v))
-    return Err(UnexpectedType('function', v));
+    return Err(UnexpectedType({expected: 'function', got: v}));
   return Ok(v);
 };
 
@@ -235,7 +222,7 @@ const ifThenElse = (ifExpr: Expr, thenExpr: Expr, elseExpr: Expr, env: Env): Par
   if ('err' in condition)
     return condition;
   if (!('bool' in condition.ok))
-    return Err(UnexpectedType('boolean', condition.ok));
+    return Err(UnexpectedType({expected: 'boolean', got: condition.ok}));
 
   return interpret(
     condition.ok.bool ? thenExpr : elseExpr,
@@ -284,14 +271,14 @@ export const applyFunction = (fun: Value, arg: Value, env: Env): Partial<Value> 
 
   if ('table' in fun) {
     if (!('symbol' in arg))
-      return Err(UnexpectedType('symbol', arg));
+      return Err(UnexpectedType({expected: 'symbol', got: arg}));
     const rv = fun.table.get(arg.symbol);
     if (rv === undefined)
       return Err(MissingKey(arg.symbol));
     return Ok(rv);
   }
 
-  return Err(UnexpectedType('table|function|native', fun));
+  return Err(UnexpectedType({expected: 'table|function|native', got: fun}));
 };
 
 
