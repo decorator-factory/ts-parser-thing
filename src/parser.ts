@@ -80,7 +80,7 @@ export class Parser<S, A> {
    * (at the same starting point, without the input
    * consumed)
    */
-  or<B>(other: Parser<S, A>): Parser<S, A> {
+  or<B>(other: Parser<S, B>): Parser<S, A | B> {
     // @ts-ignore
     return parser(src => {
       const ea = this.parse(src);
@@ -91,6 +91,14 @@ export class Parser<S, A> {
       const eb = other.parse(src);
       return eb
     })
+  }
+
+  /**
+   * Same as `or`, but expects the same type, which changes
+   * how some type inference works.
+   */
+  orSame(other: Parser<S, A>): Parser<S, A> {
+    return this.or(other);
   }
 
   /**

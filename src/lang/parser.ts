@@ -2,11 +2,15 @@ import { Lang, TokenParser } from '../language'
 import * as Comb from '../combinators'
 import { Tok } from './lexer'
 import {
-  Op, Ops, Expr, ParseOptions, Lam, App, Name, Str, Table, Symbol, IfThenElse, ArgSingle, LamArg, ArgTable, LamT, Dec
+  Op, Ops, Expr, ParseOptions, App,
+  Name, Str, Table, Symbol, Cond,
+  ArgSingle, LamArg, ArgTable, Lambda,
+  Dec, makeLambda, InfixOp, ExprOp
 } from './ast'
 import { shuntingYard } from './shunting-yard'
 import { ColorHandle, identityColorHandle } from './color';
 import Big from 'big.js';
+import { match, matchExhaustive, matchWildcard, WILDCARD } from '@practical-fp/union-types'
 
 
 const L = new Lang<Tok>();
@@ -75,7 +79,7 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
         L.oneOf('col').then(parameter).map(
           (p): [string, LamArg] => [target, p]
         )
-        .or(Comb.always([target, ArgSingle(target)]));
+        .orSame(Comb.always([target, ArgSingle(target)] ));
 
       const _tablePatHelper: P<[string, LamArg][]> = Comb.surroundedBy(
         L.oneOf('lbr'),
@@ -94,13 +98,13 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
     const parameterList = Comb.many(parameter).neht(L.oneOf('dot'));
 
     // Helper function to turn (x y z. body) into (x. (y. (z. body)))
-    const _makeLambda = (argNames: LamArg[], expr: Expr): Expr =>
-      argNames.reduceRight((acc, arg) => Lam(arg, acc), expr);
+    const _makeNestedLambda = (argNames: LamArg[], expr: Expr): Expr =>
+      argNames.reduceRight((acc, arg) => makeLambda(arg, acc), expr);
 
     const functionBody =
       (args: LamArg[]) =>
       exprParser
-        .map(expr => _makeLambda(args, expr))
+        .map(expr => _makeNestedLambda(args, expr))
         .orBail('After the dot, there should be a function body');
 
     return parameterList.flatMap(functionBody);
@@ -113,7 +117,7 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
       L.oneOf('then').orBail('Expected `then`').then(exprParser),
       L.oneOf('else').orBail('Expected `else`').then(exprParser)
     )
-  ).map(([ifE, [thenE, elseE]]) => IfThenElse(ifE, thenE, elseE));
+  ).map(([ifE, [thenE, elseE]]) => Cond({if: ifE, then: thenE, else: elseE}));
 
 
   // `atomic` is something that doesn't change the parsing result
@@ -129,6 +133,8 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
     .or(tableLiteral);
 
 
+  const app = (fun: Expr, arg: Expr) => App({fun, arg});
+
   const operatorSection = (() => {
     // An operator section can have either an infix operator,
     // like (+ 3), or a backticked name, like (`div` 2)
@@ -143,12 +149,12 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
     // (+ 1) <=> {_: _ + 1}
     const leftSection =
       inParentheses(Comb.pair(infixOperator, atomic))
-      .map(([op, right]) => Lam(ArgSingle('_'), App(App(op, Name('_')), right)));
+      .map(([op, right]) => makeLambda(ArgSingle('_'), app(app(op, Name('_')), right)));
 
     // (1 +) <=> ((+) 1)
     const rightSection =
       inParentheses(Comb.pair(atomic, infixOperator))
-      .map(([left, op]) => App(op, left));
+      .map(([left, op]) => app(op, left));
 
     // (+)
     const bareOperator = inParentheses(infixOperator);
@@ -159,25 +165,22 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
 
   const application =
     Comb.manyAtLeast(atomic, 1, 'Unexpected end of input')
-        .map(([first, ...rest]) => rest.reduce(App, first));
-        // (a b c d) = (((a b) c) d) = App(App(App(a, b), c), d)
+        .map(([first, ...rest]) => rest.reduce(app, first));
+        // (a b c d) = (((a b) c) d) = app(app(app(a, b), c), d)
         // where a, b, c, d are atomic expressions
 
 
   const infixOperatorExpression = (() => {
     // Infix expression, like (1 + a - b c d * e f g)
 
-    const symbolInfixOp =
-      L.reading<Op>('op',
-        value => ({type: 'infix', value})
-      );
+    const symbolInfixOp = L.reading<Op>('op', InfixOp);
 
     const backtickInfixOp =
       L.oneOf('backtick')
-      .then(exprParser.map<Op>(expr => ({type: 'expr', expr})))
+      .then(exprParser.map(ExprOp))
       .neht(L.oneOf('backtick'));
 
-    const infixOperator =symbolInfixOp.or(backtickInfixOp);
+    const infixOperator = symbolInfixOp.or(backtickInfixOp);
 
     const operatorList: P<Ops> = Comb.pair(
       application,
@@ -204,48 +207,63 @@ const isIdentifier = (s: string) => /^(?![0-9])[a-zA-Z_0-9]+$/.test(s);
 
 
 const unparseArg = (arg: LamArg, col: ColorHandle): string =>
-  'single' in arg
-  ? col.arg(arg.single)
-  : (
-    col.arg('{')
-    + arg.table.map(
-        ([target, source]) =>
-          'single' in source && source.single === target
-          ? col.arg(target)
-          : col.arg(target) + ': ' + unparseArg(source, col)
+  matchExhaustive(arg, {
+    ArgSingle: name => col.arg(name),
+    ArgTable: pairs =>
+      col.arg('{')
+      + pairs.map(
+          ([target, source]) =>
+            source.tag === 'ArgSingle' && source.value === target
+            ? col.arg(target)
+            : col.arg(target) + ': ' + unparseArg(source, col)
       ).join(', ')
-    + col.arg('}')
-  );
+      + col.arg('}')
+  });
 
 const unparseApp = ({fun, arg}: {fun: Expr, arg: Expr}, col: ColorHandle): string => {
   const args: Expr[] = [];
-  while (fun.tag === 'app'){
+  while (fun.tag === 'App'){
     args.push(arg);
-    arg = fun.arg;
-    fun = fun.fun;
+    arg = fun.value.arg;
+    fun = fun.value.fun;
   }
   args.push(arg);
   args.reverse();
   return '(' + unparse(fun, col) + ' ' + args.map(e => unparse(e, col)).join(' ') + ')';
 };
 
-const unparseLam = (lam: LamT, col: ColorHandle): string => {
+
+const extractRightOperatorSection = (lam: Lambda): [string, Expr] | null => {
+  // right operator section, like `(- 5)`, is encoded as a lambda: {_: _ - 5}
+
+  if (
+    lam.arg.tag === 'ArgSingle'
+    && lam.arg.value === '_'
+    && lam.expr.tag === 'App'
+    && lam.expr.value.fun.tag === 'App'
+    && lam.expr.value.fun.value.fun.tag === 'Name'
+    && !isIdentifier(lam.expr.value.fun.value.fun.value)
+    && lam.expr.value.fun.value.arg.tag === 'Name'
+    && lam.expr.value.fun.value.arg.value === '_'
+  )
+    return [lam.expr.value.fun.value.fun.value, lam.expr.value.fun.value.arg];
+  else
+    return null;
+};
+
+const unparseLam = (lam: Lambda, col: ColorHandle): string => {
   // right operator section, like `(- 5)`, is encoded as a lambda: {_: _ - 5}
   // TODO: refactor
-  if ('single' in lam.arg
-      && lam.arg.single === '_'
-      && lam.expr.tag === 'app'
-      && lam.expr.fun.tag === 'app'
-      && lam.expr.fun.fun.tag === 'name'
-      && !isIdentifier(lam.expr.fun.fun.name)
-      && lam.expr.fun.arg.tag === 'name'
-      && lam.expr.fun.arg.name === '_')
-        return '(' + col.name(lam.expr.fun.fun.name) + ' ' + unparse(lam.expr.arg, col) + ')';
+  const ros = extractRightOperatorSection(lam);
+  if (ros !== null) {
+    const [operator, expr] = ros;
+    return '(' + col.name(operator) + ' ' + unparse(expr, col) + ')';
+  }
 
   const args: LamArg[] = [];
-  while (lam.expr.tag === 'lam') {
+  while (lam.expr.tag === 'Lam') {
     args.push(lam.arg);
-    lam = lam.expr;
+    lam = lam.expr.value;
   }
   args.push(lam.arg);
   return (
@@ -261,30 +279,24 @@ export const unparse = (expr: Expr, col: ColorHandle = identityColorHandle, dept
   if (depth > 12)
     return '...';
 
-  switch (expr.tag) {
-    case 'name': return col.name(isIdentifier(expr.name) ? expr.name : `(${expr.name})`);
-    case 'dec': return col.num(expr.value.toString());
-    case 'str': return col.str(JSON.stringify(expr.value));
-    case 'symbol': return col.constant(':' + expr.value);
-    case 'table': return (
-        col.punctuation('{')
-        + expr.pairs.map(([k, v]) => `${col.name(k)}: ${unparse(v, col, depth+1)}`).join(', ')
-        + col.punctuation('}')
-      );
-    case 'app': return unparseApp(expr, col);
-    case 'lam': return unparseLam(expr, col);
-    case 'ite': return (
-      col.keyword('if')
-      + ' '
-      + unparse(expr.if, col, depth+1)
-      + ' '
-      + col.keyword('then')
-      + ' '
-      + unparse(expr.then, col, depth+1)
-      + ' '
-      + col.keyword('else')
-      + ' '
-      + unparse(expr.else, col, depth+1)
-    );
-  }
+  return matchExhaustive(expr, {
+    Name: name => col.name(isIdentifier(name) ? name : `(${name})`),
+    Dec: value => col.num(value.toString()),
+    Str: value => col.str(JSON.stringify(value)),
+    Symbol: value => col.constant(':' + value),
+    Table: pairs =>
+      col.punctuation('{')
+      + pairs.map(([k, v]) => `${col.name(k)}: ${unparse(v, col, depth+1)}`).join(', ')
+      + col.punctuation('}'),
+    App: app => unparseApp(app, col),
+    Lam: lam => unparseLam(lam, col),
+    Cond: cond => [
+      col.keyword('if'),
+      unparse(cond.if, col, depth+1),
+      col.keyword('then'),
+      unparse(cond.then, col, depth+1),
+      col.keyword('else'),
+      unparse(cond.else, col, depth+1)
+    ].join(' '),
+  });
 };

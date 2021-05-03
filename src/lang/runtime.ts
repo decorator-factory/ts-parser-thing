@@ -1,4 +1,4 @@
-import { Expr, LamArg, LamT } from './ast';
+import { Expr, Lam, LamArg, Lambda } from './ast';
 import { unparse } from './parser';
 
 import { Ok, Err, Either } from '../either';
@@ -7,6 +7,7 @@ import * as Ei from '../either';
 import { Map } from 'immutable';
 import { ColorHandle, identityColorHandle } from './color';
 import { Dimension, makeUnit, Unit as UnitType, UnitSource } from './units';
+import { match, matchExhaustive } from '@practical-fp/union-types';
 
 
 const tryLookupName = (name: string, env: Env): Value | null => {
@@ -27,7 +28,7 @@ export type Env = {
 
 export type NativeFn = (v: Value, e: Env) => Partial<Value>;
 
-export type FunT = {fun: LamT, closure: Env};
+export type FunT = {fun: Lambda, closure: Env};
 export type LazyName = string | (() => string);
 export type Value =
   | {str: string}
@@ -44,7 +45,7 @@ export const Symbol = (symbol: string): Value => ({symbol});
 export const Unit = (...unit: UnitSource): Value => ({unit: makeUnit(...unit)});
 export const Bool = (bool: boolean): Value => ({bool});
 export const Table = (table: Map<string, Value>): Value => ({table});
-export const Fun = (fun: LamT, closure: Env): Value => ({fun, closure});
+export const Fun = (fun: Lambda, closure: Env): Value => ({fun, closure});
 export const Native = (name: LazyName, native: (v: Value, e: Env) => Partial<Value>): Value => ({name, native});
 export const NativeOk = (name: LazyName, fn: (v: Value, e: Env) => Value): Value =>
   ({name, native: (v, e) => Ok(fn(v, e))});
@@ -169,8 +170,8 @@ export const prettyPrint = (value: Value, col: ColorHandle = identityColorHandle
 
   else if ('fun' in value)
     return (value.fun.capturedNames.length === 0)
-      ? `${unparse(value.fun, col, depth)}`
-      : `${unparse(value.fun, col, depth)} where ${envRepr(value.closure, value.fun.capturedNames, col, depth+1)}`;
+      ? `${unparse(Lam(value.fun), col, depth)}`
+      : `${unparse(Lam(value.fun), col, depth)} where ${envRepr(value.closure, value.fun.capturedNames, col, depth+1)}`;
 
   else if ('native' in value)
     return col.constant(typeof value.name === 'string' ? value.name : value.name());
@@ -192,51 +193,40 @@ export const prettyPrint = (value: Value, col: ColorHandle = identityColorHandle
 };
 
 
+const ok = (v: Value): Partial<Value> => Ok(v);
+const err = (e: RuntimeError): Partial<Value> => Err(e);
+
 export const interpret = (expr: Expr, env: Env): Partial<Value> => {
-  switch (expr.tag) {
-    case 'dec':
-      return Ok(Unit(expr.value));
-
-    case 'str':
-      return Ok(Str(expr.value));
-
-    case 'symbol':
-      return Ok(Symbol(expr.value));
-
-    case 'table': {
+  return matchExhaustive(expr, {
+    Dec: value => ok(Unit(value)),
+    Str: value => ok(Str(value)),
+    Symbol: value => ok(Symbol(value)),
+    Table: pairs => {
       const rv: [string, Value][] = [];
-      for (const [k, subexpr] of expr.pairs) {
+      for (const [k, subexpr] of pairs) {
         const subresult = interpret(subexpr, env);
         if ('err' in subresult)
           return subresult;
         rv.push([k, subresult.ok]);
       }
-      return Ok(Table(Map(rv)));
-    }
-
-    case 'name': {
-      const result = tryLookupName(expr.name, env);
+      return ok(Table(Map(rv)));
+    },
+    Name: name => {
+      const result = tryLookupName(name, env);
       if (result === null)
-        return Err(UndefinedName(expr.name));
-      return Ok(result);
-    };
-
-    case 'app':
-      return Ei.flatMap(
-        interpret(expr.fun, env),
-        fun => Ei.flatMap(
-          interpret(expr.arg, env),
-          arg => applyFunction(fun, arg, env)
-        )
-      );
-
-    case 'lam':
-      return Ok(Fun(expr, env));
-
-    case 'ite':
-      return ifThenElse(expr.if, expr.then, expr.else, env);
-
-  }
+        return err(UndefinedName(name));
+      return ok(result);
+    },
+    App: ({fun, arg}) => Ei.flatMap(
+      interpret(fun, env),
+      f => Ei.flatMap(
+        interpret(arg, env),
+        a => applyFunction(f, a, env)
+      )
+    ),
+    Lam: lam => ok(Fun(lam, env)),
+    Cond: cond => ifThenElse(cond.if, cond.then, cond.else, env)
+  });
 };
 
 
@@ -255,12 +245,12 @@ const ifThenElse = (ifExpr: Expr, thenExpr: Expr, elseExpr: Expr, env: Env): Par
 
 
 export const bindNames = (declaration: LamArg, argument: Value, env: Env): Partial<[string, Value][]> => {
-  if ('single' in declaration)
-    return Ok([[declaration.single, argument]]);
+  if (declaration.tag === 'ArgSingle')
+    return Ok([[declaration.value, argument]]);
 
   const rv: [string, Value][] = [];
 
-  for (const [src, target] of declaration.table) {
+  for (const [src, target] of declaration.value) {
     const newBindings =
       Ei.flatMap(
         applyFunction(argument, Symbol(src), env),
@@ -272,7 +262,7 @@ export const bindNames = (declaration: LamArg, argument: Value, env: Env): Parti
   }
 
   return Ok(rv);
-}
+};
 
 
 export const applyFunction = (fun: Value, arg: Value, env: Env): Partial<Value> => {

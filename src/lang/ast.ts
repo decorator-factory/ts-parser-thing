@@ -4,78 +4,46 @@
  * Abstract Syntax Tree.
  */
 
-
+import { Variant, impl, matchExhaustive } from '@practical-fp/union-types';
 import Big from 'big.js';
 
-
 export type Expr =
-  | {tag: 'name', name: string}
-  | {tag: 'app', fun: Expr, arg: Expr}
-  | {tag: 'dec', value: Big}
-  | {tag: 'str', value: string}
-  | {tag: 'symbol', value: string}
-  | {tag: 'table', pairs: [string, Expr][] }
-  | {tag: 'ite', if: Expr, then: Expr, else: Expr}
-  | LamT
+  | Variant<'Name',   string>
+  | Variant<'App',    {fun: Expr, arg: Expr}>
+  | Variant<'Dec',    Big>
+  | Variant<'Str',    string>
+  | Variant<'Symbol', string>
+  | Variant<'Table',  [string, Expr][]>
+  | Variant<'Cond',   {if: Expr, then: Expr, else: Expr}>
+  | Variant<'Lam',    Lambda>;
 
-// Smart constructors for Expr:
+export const { Name, App, Dec, Str, Symbol, Table, Cond, Lam } = impl<Expr>()
 
-export const App =
-  (fun: Expr, arg: Expr): Expr =>
-    ({tag: 'app', fun, arg});
+export type Lambda = {arg: LamArg, expr: Expr, capturedNames: string[]};
 
-export const Name =
-  (name: string): Expr =>
-    ({tag: 'name', name});
-
-export const Dec =
-(value: Big): Expr =>
-  ({tag: 'dec', value});
-
-export const Str =
-(value: string): Expr =>
-  ({tag: 'str', value});
-
-export const Symbol =
-(value: string): Expr =>
-  ({tag: 'symbol', value});
-
-export const Table =
-  (pairs: [string, Expr][]): Expr =>
-    ({tag: 'table', pairs});
-
-export const Lam =
-  (arg: LamArg, expr: Expr): Expr =>
-    ({
-      tag: 'lam',
-      arg,
-      expr,
-      capturedNames: getCapturedNames(expr, extractNamesFromArg(arg))
-    });
-
-export const IfThenElse =
-(ifE: Expr, thenE: Expr, elseE: Expr): Expr =>
-  ({tag: 'ite', if: ifE, then: thenE, else: elseE});
-
+export const makeLambda = (arg: LamArg, expr: Expr): Expr =>
+  Lam({
+    arg,
+    expr,
+    capturedNames: getCapturedNames(expr, extractNamesFromArg(arg))
+  });
 
 // Types related to lambdas:
 
 export type LamArg =
-  | {single: string}
-  | {table: [string, LamArg][]}
+  | Variant<'ArgSingle', string>
+  | Variant<'ArgTable', [string, LamArg][]>;
 
-export const ArgSingle = (single: string): LamArg => ({single});
-export const ArgTable = (table: [string, LamArg][]): LamArg => ({table});
-
-export type LamT =
-  {tag: 'lam', arg: LamArg, expr: Expr, capturedNames: string[]};
+export const { ArgSingle, ArgTable } = impl<LamArg>();
 
 
 // Types used by the parser:
 
 export type Op =
-  | {type: 'infix', value: string}
-  | {type: 'expr', expr: Expr}
+  | Variant<'InfixOp', string>
+  | Variant<'ExprOp', Expr>
+
+export const { InfixOp, ExprOp } = impl<Op>();
 
 export type Ops = {initial: Expr, chunks: [Op, Expr][]}
 
@@ -93,44 +61,30 @@ export type ParseOptions = {
 }
 
 
-
 const extractNamesFromArg = (arg: LamArg): string[] =>
-  'single' in arg? [arg.single] : arg.table.flatMap(([_src, target]) => extractNamesFromArg(target));
+  matchExhaustive(arg, {
+    ArgSingle: name => [name],
+    ArgTable: table => table.flatMap(([_src, target]) => extractNamesFromArg(target))
+  });
 
-const _getCapturedNames = (expr: Expr, exclude: string[]): string[] => {
-  switch (expr.tag) {
-    case 'name':
-      return exclude.includes(expr.name) ? [] : [expr.name];
 
-    case 'app':
-      return (
-        _getCapturedNames(expr.fun, exclude)
-        .concat(_getCapturedNames(expr.arg, exclude))
-      );
-
-    case 'dec':
-      return [];
-
-    case 'str':
-      return [];
-
-    case 'symbol':
-      return [];
-
-    case 'table':
-      return expr.pairs.flatMap(([_, subexpr]) => _getCapturedNames(subexpr, exclude));
-
-    case 'lam':
-      return expr.capturedNames.filter(name => !exclude.includes(name));
-
-    case 'ite':
-      return [
-        ..._getCapturedNames(expr.if, exclude),
-        ..._getCapturedNames(expr.then, exclude),
-        ..._getCapturedNames(expr.else, exclude)
-      ];
-  }
-}
+const _getCapturedNames = (expr: Expr, exclude: string[]): string[] =>
+  matchExhaustive(expr, {
+    Name: name => exclude.includes(name) ? [] : [name],
+    App: ({fun, arg}) =>
+      _getCapturedNames(fun, exclude)
+      .concat(_getCapturedNames(arg, exclude)),
+    Dec: () => [],
+    Str: () => [],
+    Symbol: () => [],
+    Table: pairs => pairs.flatMap(([_, subexpr]) => _getCapturedNames(subexpr, exclude)),
+    Lam: ({capturedNames}) => capturedNames.filter(name => !exclude.includes(name)),
+    Cond: (e) => [
+      ..._getCapturedNames(e.if, exclude),
+      ..._getCapturedNames(e.then, exclude),
+      ..._getCapturedNames(e.else, exclude)
+    ]
+  });
 
 
 const unique =

@@ -8,6 +8,7 @@
  */
 
 
+import { matchExhaustive } from '@practical-fp/union-types';
 import { Op, Ops, Expr, App, Name, ParseOptions, Priority } from './ast';
 
 
@@ -26,15 +27,20 @@ const getPriority =
   operator: Op,
   options: ParseOptions
 ): Priority =>
-  operator.type === 'expr'
-  ? options.backtickPriority
-  : options.priorities[operator.value] || options.defaultPriority;
+  matchExhaustive(operator, {
+    ExprOp: () => options.backtickPriority,
+    InfixOp: name => options.priorities[name] || options.defaultPriority
+  });
+
+
 
 
 export const shuntingYard = (
   ops: Ops,
   options: ParseOptions
 ): Expr => {
+  const app = (fun: Expr, arg: Expr) => App({fun, arg});
+
   const exprStack: Expr[] = [];
   const opStack: Op[] = [];
 
@@ -44,11 +50,12 @@ export const shuntingYard = (
     const op = opStack.pop() || never<Op>();
     const right: Expr = exprStack.pop() || never<Expr>();
     const left: Expr = exprStack.pop() || never<Expr>();
-    const app: Expr =
-      op.type === 'expr'
-        ? App(App(op.expr, left), right)
-        : App(App(Name(op.value), left), right);
-    exprStack.push(app);
+    const application: Expr =
+      matchExhaustive(op, {
+        ExprOp: expr => app(app(expr, left), right),
+        InfixOp: name => app(app(Name(name), left), right),
+      });
+    exprStack.push(application);
   }
 
   for (const item of opsToStream(ops))

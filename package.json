@@ -28,6 +28,7 @@
     "typescript": "^4.1.3"
   },
   "dependencies": {
+    "@practical-fp/union-types": "^1.5.1",
     "big.js": "^6.0.3",
     "chalk": "^4.1.0",
     "fraction.js": "^4.0.13",
