@@ -1,4 +1,4 @@
-import { Expr, Lam, LamArg, Lambda } from './ast';
+import { Dec, Expr, Lam, LamArg, Lambda } from './ast';
 import { unparse } from './parser';
 
 import { Ok, Err, Either } from '../either';
@@ -7,7 +7,7 @@ import * as Ei from '../either';
 import { Map } from 'immutable';
 import { ColorHandle, identityColorHandle } from './color';
 import { Dimension, makeUnit, Unit as UnitType, UnitSource } from './units';
-import { impl, match, matchExhaustive, Variant } from '@practical-fp/union-types';
+import { impl, match, matchExhaustive, matchWildcard, predicate, Variant, WILDCARD } from '@practical-fp/union-types';
 
 
 const tryLookupName = (name: string, env: Env): Value | null => {
@@ -30,25 +30,33 @@ export type NativeFn = (v: Value, e: Env) => Partial<Value>;
 
 export type FunT = {fun: Lambda, closure: Env};
 export type LazyName = string | (() => string);
+
 export type Value =
-  | {str: string}
-  | {unit: UnitType}
-  | {symbol: string}
-  | FunT
-  | {native: NativeFn, name: LazyName}
-  | {table: Map<string, Value>}
-  | {bool: boolean}
+  | Variant<'Str', string>
+  | Variant<'Unit', UnitType>
+  | Variant<'Symbol', string>
+  | Variant<'Fun', {fun: Lambda, closure: Env}>
+  | Variant<'Native', {fun: NativeFn, name: LazyName}>
+  | Variant<'Table', Map<string, Value>>
+  | Variant<'Bool', boolean>;
 
 
-export const Str = (str: string): Value => ({str});
-export const Symbol = (symbol: string): Value => ({symbol});
-export const Unit = (...unit: UnitSource): Value => ({unit: makeUnit(...unit)});
-export const Bool = (bool: boolean): Value => ({bool});
-export const Table = (table: Map<string, Value>): Value => ({table});
-export const Fun = (fun: Lambda, closure: Env): Value => ({fun, closure});
-export const Native = (name: LazyName, native: (v: Value, e: Env) => Partial<Value>): Value => ({name, native});
-export const NativeOk = (name: LazyName, fn: (v: Value, e: Env) => Value): Value =>
-  ({name, native: (v, e) => Ok(fn(v, e))});
+const vimpl = impl<Value>();
+export const {
+  Str,
+  Symbol,
+  Fun,
+  Native,
+  Table,
+  Bool
+} = vimpl
+
+export const Unit = (...src: UnitSource): Value => vimpl.Unit(makeUnit(...src));
+Unit.is = predicate('Unit');
+
+
+export const NativeOk = (name: LazyName, fun: (v: Value, e: Env) => Value): Value =>
+  Native({name, fun: (v, e) => Ok(fun(v, e))})
 
 
 export type RuntimeError =
@@ -88,41 +96,39 @@ export type Partial<A> = Either<RuntimeError, A>;
 
 
 export const asUnit = (v: Value): Partial<UnitType> => {
-  if (!('unit' in v))
+  if (!Unit.is(v))
     return Err(UnexpectedType({expected: 'unit', got: v}));
-  return Ok(v.unit);
+  return Ok(v.value);
 };
 
 export const asStr = (v: Value): Partial<string> => {
-  if (!('str' in v))
+  if (!Str.is(v))
     return Err(UnexpectedType({expected: 'string', got: v}));
-  return Ok(v.str);
+  return Ok(v.value);
 };
 
 export const asSymb = (v: Value): Partial<string> => {
-  if (!('symbol' in v))
+  if (!Symbol.is(v))
     return Err(UnexpectedType({expected: 'symbol', got: v}));
-  return Ok(v.symbol);
+  return Ok(v.value);
 };
 
 export const asStrOrSymb = (v: Value): Partial<string> => {
-  if ('str' in v)
-    return Ok(v.str);
-  if ('symbol' in v)
-    return Ok(v.symbol);
+  if (Str.is(v) || Symbol.is(v))
+    return Ok(v.value);
   return Err(UnexpectedType({expected: 'string|symbol', got: v}));
 };
 
 export const asTable = (v: Value): Partial<Map<string, Value>> => {
-  if (!('table' in v))
+  if (!Table.is(v))
     return Err(UnexpectedType({expected: 'table', got: v}));
-  return Ok(v.table);
+  return Ok(v.value);
 };
 
 export const asFun = (v: Value): Partial<FunT> => {
-  if (!('fun' in v))
+  if (!Fun.is(v))
     return Err(UnexpectedType({expected: 'function', got: v}));
-  return Ok(v);
+  return Ok(v.value);
 };
 
 
@@ -149,34 +155,22 @@ export const prettyPrint = (value: Value, col: ColorHandle = identityColorHandle
   if (depth > 12)
     return '...';
 
-  if ('str' in value)
-    return col.str(JSON.stringify(value.str));
-
-  else if ('unit' in value)
-    return col.num(value.unit.toString());
-
-  else if ('fun' in value)
-    return (value.fun.capturedNames.length === 0)
-      ? `${unparse(Lam(value.fun), col, depth)}`
-      : `${unparse(Lam(value.fun), col, depth)} where ${envRepr(value.closure, value.fun.capturedNames, col, depth+1)}`;
-
-  else if ('native' in value)
-    return col.constant(typeof value.name === 'string' ? value.name : value.name());
-
-  else if ('symbol' in value)
-    return col.constant(':' + value.symbol);
-
-  else if ('bool' in value)
-    return col.constant(`${value.bool}`);
-
-  else
-    return value.table.size === 0
-      ? col.constant('{}')
-      : (
+  return matchExhaustive(value, {
+    Str: s => col.str(JSON.stringify(s)),
+    Unit: u => col.num(u.toString()),
+    Fun: ({fun, closure}) => (fun.capturedNames.length === 0)
+      ? `${unparse(Lam(fun), col, depth)}`
+      : `${unparse(Lam(fun), col, depth)} where ${envRepr(closure, fun.capturedNames, col, depth+1)}`,
+    Native: ({name}) =>
+      col.constant(typeof name === 'string' ? name : name()),
+    Symbol: s => col.constant(':' + s),
+    Bool: b => col.constant(`${b}`),
+    Table: table => (
         col.punctuation('{')
-        + [...value.table.entries()].map(([k, v]) => `${col.name(k)}: ${prettyPrint(v, col, depth + 1)}`).join(', ')
+        + [...table.entries()].map(([k, v]) => `${col.name(k)}: ${prettyPrint(v, col, depth + 1)}`).join(', ')
         + col.punctuation('}')
-      );
+      ),
+  })
 };
 
 
@@ -211,7 +205,7 @@ export const interpret = (expr: Expr, env: Env): Partial<Value> => {
         a => applyFunction(f, a, env)
       )
     ),
-    Lam: lam => ok(Fun(lam, env)),
+    Lam: lam => ok(Fun({fun: lam, closure: env})),
     Cond: cond => ifThenElse(cond.if, cond.then, cond.else, env)
   });
 };
@@ -221,11 +215,12 @@ const ifThenElse = (ifExpr: Expr, thenExpr: Expr, elseExpr: Expr, env: Env): Par
   const condition = interpret(ifExpr, env);
   if ('err' in condition)
     return condition;
-  if (!('bool' in condition.ok))
+
+  if (condition.ok.tag !== 'Bool')
     return Err(UnexpectedType({expected: 'boolean', got: condition.ok}));
 
   return interpret(
-    condition.ok.bool ? thenExpr : elseExpr,
+    condition.ok ? thenExpr : elseExpr,
     env
   );
 };
@@ -252,83 +247,27 @@ export const bindNames = (declaration: LamArg, argument: Value, env: Env): Parti
 };
 
 
-export const applyFunction = (fun: Value, arg: Value, env: Env): Partial<Value> => {
-  if ('native' in fun)
-    return fun.native(arg, env);
+export const applyFunction = (callable: Value, arg: Value, env: Env): Partial<Value> =>
+  matchWildcard(callable, {
+    Native: ({fun}) => fun(arg, env),
 
-  if ('fun' in fun)
-    return Ei.flatMap(
-      bindNames(fun.fun.arg, arg, env),
+    Fun: ({fun, closure}) => Ei.flatMap(
+      bindNames(fun.arg, arg, env),
       boundNames =>
         interpret(
-          fun.fun.expr,
-          {
-            parent: fun.closure,
-            names: Map(boundNames),
-          }
+          fun.expr,
+          { parent: closure, names: Map(boundNames) }
         )
-    );
+    ),
 
-  if ('table' in fun) {
-    if (!('symbol' in arg))
-      return Err(UnexpectedType({expected: 'symbol', got: arg}));
-    const rv = fun.table.get(arg.symbol);
-    if (rv === undefined)
-      return Err(MissingKey(arg.symbol));
-    return Ok(rv);
-  }
+    Table: table => {
+      if (arg.tag !== 'Symbol')
+        return err(UnexpectedType({expected: 'symbol', got: arg}));
+      const rv = table.get(arg.value);
+      if (rv === undefined)
+        return err(MissingKey(arg.value));
+      return ok(rv)
+    },
 
-  return Err(UnexpectedType({expected: 'table|function|native', got: fun}));
-};
-
-
-export const computeDiff = (e: Value, a: Value): string | null => {
-  if ('str' in e)
-    return 'str' in a
-      ? (e.str === a.str ? null : `expected ${prettyPrint(e)}, got ${prettyPrint(a)}`)
-      : `expected string, got ${prettyPrint(a)}`;
-
-  if ('unit' in e)
-    return 'unit' in a
-    ? (e.unit.equals(a.unit) ? null : `expected ${prettyPrint(e)}, got ${prettyPrint(a)}`)
-    : `expected unit, got ${prettyPrint(a)}`;
-
-  if ('symbol' in e)
-    return 'symbol' in a
-      ? (e.symbol === a.symbol ? null : `expected ${prettyPrint(e)}, got ${prettyPrint(a)}`)
-      : `expected symbol, got ${prettyPrint(a)}`;
-
-  if ('bool' in e)
-    return 'bool' in a
-      ? (e.bool === a.bool ? null : `expected ${prettyPrint(e)}, got ${prettyPrint(a)}`)
-      : `expected bool, got ${prettyPrint(a)}`;
-
-  if ('table' in e) {
-    if (!('table' in a))
-      return `expected table, got ${prettyPrint(a)}`;
-
-    const differences: [string, string][] = [];
-
-    for (const [k, ve] of e.table.entries()) {
-      const va = a.table.get(k);
-      if (va === undefined) {
-        differences.push([k, `missing key ${k}`])
-      } else {
-        const subDiff = computeDiff(va, ve);
-        if (subDiff !== null)
-          differences.push([k, subDiff])
-      }
-    }
-
-    for (const k of a.table.keys())
-      if (!e.table.has(k))
-        differences.push([k, `extra key ${k}`])
-
-    if (differences.length === 0)
-      return null;
-
-    return '{' + differences.map(([k, msg]) => `${k}: ${msg}`).join(', ') + '}';
-  }
-
-  throw new Error(`Cannot expect a function ${prettyPrint(e)}`);
-}
+    [WILDCARD]: () => err(UnexpectedType({expected: 'table|function|native', got: callable}))
+  });

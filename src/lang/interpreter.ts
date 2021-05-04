@@ -31,7 +31,7 @@ import { TokenParser, TokenStream } from '../language';
 
 import { Either, Err, Ok } from '../either';
 import * as Ei from '../either';
-import { dimEq, neutralDimension, populateDim } from './units';
+import { dimEq, makeUnit, neutralDimension, populateDim } from './units';
 import Fraction from 'fraction.js';
 import Big from 'big.js';
 
@@ -199,14 +199,14 @@ export class Interpreter {
 
 
 const compose = (f1: Value, f2: Value): Value =>
-  Native(
-    `(${prettyPrint(f2)} >> ${prettyPrint(f1)})`,
-    (arg: Value, env: Env) =>
+  Native({
+    name: `(${prettyPrint(f2)} >> ${prettyPrint(f1)})`,
+    fun: (arg: Value, env: Env) =>
       Ei.flatMap(
         applyFunction(f2, arg, env),
         x2 => applyFunction(f1, x2, env)
       )
-  );
+  });
 
 
 /// Prelude
@@ -228,7 +228,7 @@ const _makeModule = (
   table: Map<string, Value>
 ) => {
   const tableV = Table(table.set('__table__', Table(table)));
-  return Native(name, (key, env) => applyFunction(tableV, key, env))
+  return Native({name, fun: (key, env) => applyFunction(tableV, key, env)})
 };
 
 
@@ -250,9 +250,9 @@ const _binOp =
 ): Value =>
   NativeOk(
     `(${name})`,
-    a => Native(
-      () =>`(${prettyPrint(a)} ${name})`,
-      (b, env) =>
+    a => Native({
+      name: () =>`(${prettyPrint(a)} ${name})`,
+      fun: (b, env) =>
         Ei.flatMap(
           first(a),
           parsedA => Ei.flatMap(
@@ -260,7 +260,7 @@ const _binOp =
             parsedB => f(parsedA, parsedB, env)
           )
         )
-    )
+    })
   );
 
 
@@ -288,40 +288,42 @@ const _readLine = (): string => {
 const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
   'import': NativeOk(
     'IO:import',
-    tV => Native(`IO:import ${prettyPrint(tV)}`,
-      (sV, e) => Ei.flatMap(asStrOrSymb(sV), name => {
+    tV => Native({
+      name: `IO:import ${prettyPrint(tV)}`,
+      fun: (sV, e) => Ei.flatMap(asStrOrSymb(sV), name => {
         h.deleteName(name);
         const v = applyFunction(tV, Symbol(name), e);
         if ('err' in v)
           return v;
         h.setName(name, v.ok);
         return v;
-      }))
-  ),
-
-  'log': Native(
-    'IO:log',
-    sV => Ei.flatMap(asStr(sV), s => {
-      console.log(s);
-      return Ok(unit);
+      })
     })
   ),
 
-  'readLine': Native(
-    'IO:readLine',
-    () => Ok(Str(_readLine()))
-  ),
+  'log': Native({
+    name: 'IO:log',
+    fun: sV => Ei.flatMap(asStr(sV), s => {
+      console.log(s);
+      return Ok(unit);
+    })
+  }),
+
+  'readLine': Native({
+    name: 'IO:readLine',
+    fun: () => Ok(Str(_readLine()))
+  }),
 
   'debug': NativeOk(
     'IO:debug',
-    a => {
+     a => {
       console.log(prettyPrint(a));
       return a;
     }),
 
-  'define': Native(
-    'IO:define',
-    s =>
+  'define': Native({
+    name: 'IO:define',
+    fun: s =>
       Ei.map(
         asStrOrSymb(s),
         varName => {
@@ -332,12 +334,12 @@ const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
           );
         }
       )
-  ),
+  }),
 
-  'forget': Native(
-    'IO:forget',
-    s => Ei.map(asStrOrSymb(s), varName => { h.deleteName(varName); return unit; })
-  ),
+  'forget': Native({
+    name: 'IO:forget',
+    fun: s => Ei.map(asStrOrSymb(s), varName => { h.deleteName(varName); return unit; })
+  }),
 
   'try': NativeOk(
     'IO:try',
@@ -369,29 +371,42 @@ const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
 const ModuleStr = _makeModule('Str', Map({
   '=': _binOp('=', asStr, asStr, (a, b) => Ok(Bool(a === b))),
   '!=': _binOp('!=', asStr, asStr, (a, b) => Ok(Bool(a !== b))),
-  'lower?': Native('lower?', value => Ei.map(asStr(value), s => Bool(s.toLowerCase() === s))),
-  'upper?': Native('upper?', value => Ei.map(asStr(value), s => Bool(s.toUpperCase() === s))),
-  'from': NativeOk('from', value => Str(prettyPrint(value))),
+  'lower?': Native({
+    name: 'lower?',
+    fun: value => Ei.map(asStr(value), s => Bool(s.toLowerCase() === s))
+  }),
+  'upper?': Native({
+    name: 'upper?',
+    fun: value => Ei.map(asStr(value), s => Bool(s.toUpperCase() === s))
+  }),
+  'from': NativeOk(
+    'from',
+    value => Str(prettyPrint(value))
+  ),
 }));
 
 
 const ModuleRefl = (h: EnvHandle) => _makeModule('Refl', Map({
-  'lex': Native('lex', (v, e) =>
-    Ei.map(asStr(v), source => {
-      const stream  = lex(source);
-      for (const tok of stream)
-        console.log(`${tok.type} @${tok.position}: ${tok.content}`);
-      return unit;
-    })
-  ),
-  'parse': Native('parse', (v, e) =>
-    Ei.map(asStr(v), source => {
-      const stream  = lex(source);
-      const parsed = h.parser.parseMultiline(stream);
-      console.dir(parsed, {depth: null})
-      return unit;
-    })
-  ),
+  'lex': Native({
+    name: 'lex',
+    fun: (v, e) =>
+      Ei.map(asStr(v), source => {
+        const stream  = lex(source);
+        for (const tok of stream)
+          console.log(`${tok.type} @${tok.position}: ${tok.content}`);
+        return unit;
+      })
+  }),
+  'parse': Native({
+    name: 'parse',
+    fun: (v, e) =>
+      Ei.map(asStr(v), source => {
+        const stream  = lex(source);
+        const parsed = h.parser.parseMultiline(stream);
+        console.dir(parsed, {depth: null})
+        return unit;
+      })
+  }),
 }))
 
 
@@ -405,9 +420,9 @@ const asNeutral = (v: Value): Partial<Big> =>
 const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
 
   const _fallback = _binOpId('|?', (primaryV, fallbackV) =>
-    Ok(Native(
-      () => `(${prettyPrint(primaryV)} |? ${prettyPrint(fallbackV)})`,
-      (key, env) => {
+    Ok(Native({
+      name: () => `(${prettyPrint(primaryV)} |? ${prettyPrint(fallbackV)})`,
+      fun: (key, env) => {
         const primaryResult = applyFunction(primaryV, key, env);
         if ('ok' in primaryResult)
           return primaryResult;
@@ -417,7 +432,7 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
           return Err(err);
         return applyFunction(fallbackV, key, env);
       }
-    ))
+    }))
   );
 
   return {
@@ -461,9 +476,18 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
         return Ok(Unit(rv));
       }),
 
-      'meters': Native('meters', input => Ei.map(asNeutral(input), v => Unit(v, {'L': new Fraction(1)}))),
-      'kilograms': Native('kilograms', input => Ei.map(asNeutral(input), v => Unit(v, {'M': new Fraction(1)}))),
-      'seconds': Native('seconds', input => Ei.map(asNeutral(input), v => Unit(v, {'T': new Fraction(1)}))),
+      'meters': Native({
+        name: 'meters',
+        fun: input => Ei.map(asNeutral(input), v => Unit(v, {'L': new Fraction(1)}))
+      }),
+      'kilograms': Native({
+        name: 'kilograms',
+        fun: input => Ei.map(asNeutral(input), v => Unit(v, {'M': new Fraction(1)}))
+      }),
+      'seconds': Native({
+        name: 'seconds',
+        fun: input => Ei.map(asNeutral(input), v => Unit(v, {'T': new Fraction(1)}))
+      }),
 
       '++': _binOp('++', asStr, asStr, (a, b) => Ok(Str(a + b))),
       '<<': _binOpId('<<', (a, b) => Ok(compose(a, b))),
