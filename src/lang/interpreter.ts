@@ -113,7 +113,7 @@ export class Interpreter {
   private exit: () => void;
 
   constructor(
-    exit: () => void,
+    exit: () => void = () => {},
     parentEnv: Env | null = null,
     parser: StatefulParser | null = null,
   ) {

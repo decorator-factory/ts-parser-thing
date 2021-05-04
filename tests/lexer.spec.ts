@@ -1,5 +1,4 @@
 import { assert } from 'chai';
-import { testPure } from './helpers';
 import { lex, Tok } from '../src/lang/lexer';
 
 
