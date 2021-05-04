@@ -1,4 +1,4 @@
-import {TokenStream} from '../language';
+import { TokenStream } from '../language';
 import { ColorHandle } from './color';
 
 export type Tok =

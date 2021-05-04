@@ -10,7 +10,7 @@ import {
 import { shuntingYard } from './shunting-yard'
 import { ColorHandle, identityColorHandle } from './color';
 import Big from 'big.js';
-import { match, matchExhaustive, matchWildcard, WILDCARD } from '@practical-fp/union-types'
+import { matchExhaustive } from '@practical-fp/union-types'
 
 
 const L = new Lang<Tok>();

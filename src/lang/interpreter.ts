@@ -1,5 +1,5 @@
 import { Expr, ParseOptions, Prio, Priority } from './ast';
-import { makeParser, unparse } from './parser';
+import { makeParser } from './parser';
 import {
   applyFunction,
   asFun,
@@ -31,7 +31,7 @@ import { TokenParser, TokenStream } from '../language';
 
 import { Either, Err, Ok } from '../either';
 import * as Ei from '../either';
-import { dimEq, makeUnit, neutralDimension, populateDim } from './units';
+import { dimEq, neutralDimension } from './units';
 import Fraction from 'fraction.js';
 import Big from 'big.js';
 

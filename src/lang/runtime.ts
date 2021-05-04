@@ -1,4 +1,4 @@
-import { Dec, Expr, Lam, LamArg, Lambda } from './ast';
+import {  Expr, Lam, LamArg, Lambda } from './ast';
 import { unparse } from './parser';
 
 import { Ok, Err, Either } from '../either';
@@ -7,7 +7,7 @@ import * as Ei from '../either';
 import { Map } from 'immutable';
 import { ColorHandle, identityColorHandle } from './color';
 import { Dimension, makeUnit, Unit as UnitType, UnitSource } from './units';
-import { impl, match, matchExhaustive, matchWildcard, predicate, Variant, WILDCARD } from '@practical-fp/union-types';
+import { impl, matchExhaustive, matchWildcard, predicate, Variant, WILDCARD } from '@practical-fp/union-types';
 
 
 const tryLookupName = (name: string, env: Env): Value | null => {
