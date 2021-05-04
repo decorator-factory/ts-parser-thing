@@ -9,7 +9,7 @@ export type Token<T extends string> = Readonly<{
 }>;
 
 
-export type TokenStream<T extends string> = Token<T>[];
+export type TokenStream<T extends string> = readonly Token<T>[];
 
 
 export type TokenParser<T extends string, A> = Parser<TokenStream<T>, A>;

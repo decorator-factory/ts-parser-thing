@@ -2,7 +2,7 @@ import { Either, dispatch, Ok, Err, ParseError } from './either';
 import * as Ei from './either';
 
 export {Either, dispatch, Ok, Err, Ei}
-export type ParserF<S, A> = (src: S) => Either<ParseError, [A, S]>;
+export type ParserF<S, A> = (src: S) => Either<ParseError, readonly [A, S]>;
 
 
 export class Parser<S, A> {
