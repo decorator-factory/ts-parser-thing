@@ -52,7 +52,7 @@ const re = makeRegexp(
   ['col',       /:/                            ],
   ['comma',     /,/                            ],
   ['name',      /(?![0-9?!])[a-zA-Z_0-9?!]+/   ],
-  ['dec',       /[-]?\d+(\.\d+)?(e[-+]\d+)?/   ],
+  ['dec',       /[-]?\d+(\.\d+)?(e[-+]?\d+)?/  ],
   ['dot',       /\.(?=[^-+=*/%!|&^$><?.])/     ],
   ['op',        /[-+=*/%!|&^$><?.]+/           ],
   ['backtick',  /`/                            ],
@@ -64,7 +64,7 @@ const re = makeRegexp(
 
 type LexOptions = { includeWs: boolean };
 
-export const lex = (src: string, options: LexOptions = { includeWs: false }): TokenStream<Tok> => {
+export const lex = (src: string, options: LexOptions = { includeWs: false }): string | TokenStream<Tok> => {
   const tokens: TokenStream<Tok> = [];
   let latestPos = 0;
   for (const m of src.matchAll(re)) {
@@ -74,7 +74,7 @@ export const lex = (src: string, options: LexOptions = { includeWs: false }): To
       throw new Error('Impossible');
 
     if (latestPos < m.index)
-      throw new Error(`I don't understand: ${src.slice(latestPos, m.index)}`);
+      return `I don't understand: ${src.slice(latestPos, m.index)}`;
 
     if (!['ws'].includes(k) || options.includeWs)
       // @ts-ignore
@@ -82,7 +82,8 @@ export const lex = (src: string, options: LexOptions = { includeWs: false }): To
     latestPos = m.index + v.length;
   }
   if (latestPos !== src.length)
-    throw new Error(`I don't understand: ${src.slice(latestPos)}`);
+    return `I don't understand: ${src.slice(latestPos)}`;
+
   return tokens;
 };
 
@@ -112,8 +113,8 @@ const tokenColor = (tokenType: Tok): keyof ColorHandle => ({
 }[tokenType]);
 
 
-const _highlightGen = function* (code: string, h: ColorHandle) {
-  for (const token of lex(code, {includeWs: true})){
+const _highlightGen = function* (tokens: TokenStream<Tok>, h: ColorHandle) {
+  for (const token of tokens){
     const col = tokenColor(token.type);
     if (col === null)
       yield token.content;
@@ -123,5 +124,9 @@ const _highlightGen = function* (code: string, h: ColorHandle) {
 };
 
 export const highlightCode =
-  (code: string, h: ColorHandle): string =>
-  [..._highlightGen(code, h)].join('');
+  (code: string, h: ColorHandle): [boolean, string] => {
+  const tokens = lex(code, {includeWs: true});
+  if (typeof tokens === 'string')
+    return [false, tokens];
+  return [true, [..._highlightGen(tokens, h)].join('')];
+};
