@@ -1,0 +1,9 @@
+{
+    "mocha.files.glob": "tests/**/*.spec.ts",
+    "mocha.requires": [
+        "ts-node/register"
+    ],
+    "mocha.runTestsOnSave": "true",
+    "mocha.parallelTests": 12,
+    "mocha.sideBarOptions": { "decoration": false, "lens": false }
+}

@@ -6,6 +6,7 @@
         },
         "max-classes-per-file": {"severity": "off"},
         "no-console": {"severity": "off"},
-        "quotemark": {"options": "single"}
+        "quotemark": {"options": ["single", "avoid-escape"]},
+        "no-empty": {"severity": "off"}
     }
 }

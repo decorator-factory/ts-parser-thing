@@ -8,7 +8,6 @@
     "rootDirs": ["src", "tests"],
     "strict": true,
     "esModuleInterop": true,
-    "strictNullChecks": true,
-    "strictPropertyInitialization": true,
+    "noImplicitAny": true,
   }
 }
