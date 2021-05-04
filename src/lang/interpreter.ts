@@ -130,12 +130,9 @@ export class Interpreter {
   }
 
   public runLine(line: string): Either<LangError, Value> {
-    let tokens: TokenStream<Tok>;
-    try {
-      tokens = lex(line);
-    } catch (e) {
-      return Err({ type: 'lexError', msg: `${e}` });
-    }
+    const tokens = lex(line);
+    if (typeof tokens === 'string')
+      return Err({ type: 'lexError', msg: tokens });
 
     const parsedE = this.stParser.parse(tokens);
     if ('err' in parsedE)
@@ -158,12 +155,9 @@ export class Interpreter {
   public runMultiline(source: string): Either<LangError, Value[]> {
     source = source.trim();
 
-    let stream: TokenStream<Tok>;
-    try {
-      stream = lex(source);
-    } catch (e) {
-      return Err({ type: 'lexError', msg: `${e}` });
-    }
+    const stream = lex(source);
+    if (typeof stream === 'string')
+      return Err({ type: 'lexError', msg: stream });
 
     const parsed = this.stParser.parseMultiline(stream);
 
@@ -392,8 +386,12 @@ const ModuleRefl = (h: EnvHandle) => _makeModule('Refl', Map({
     fun: (v, e) =>
       Ei.map(asStr(v), source => {
         const stream  = lex(source);
-        for (const tok of stream)
-          console.log(`${tok.type} @${tok.position}: ${tok.content}`);
+        if (typeof stream === 'string') {
+          console.error(stream);
+        } else {
+          for (const tok of stream)
+            console.log(`${tok.type} @${tok.position}: ${tok.content}`);
+        }
         return unit;
       })
   }),
@@ -402,8 +400,12 @@ const ModuleRefl = (h: EnvHandle) => _makeModule('Refl', Map({
     fun: (v, e) =>
       Ei.map(asStr(v), source => {
         const stream  = lex(source);
-        const parsed = h.parser.parseMultiline(stream);
-        console.dir(parsed, {depth: null})
+        if (typeof stream === 'string') {
+          console.error(stream);
+        } else {
+          const parsed = h.parser.parseMultiline(stream);
+          console.dir(parsed, {depth: null})
+        }
         return unit;
       })
   }),
