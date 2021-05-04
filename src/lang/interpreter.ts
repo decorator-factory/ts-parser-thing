@@ -265,19 +265,6 @@ const _binOpId = (
   _binOp(name, Ok, Ok, f);
 
 
-const _readLine = (): string => {
-  const CHUNK_SIZE = 1024;
-  const buf = Buffer.alloc(CHUNK_SIZE);
-  let rv = '';
-  while (true) {
-    const bytesRead = fs.readSync(0, buf, 0, CHUNK_SIZE, null);
-    rv += buf.toString('utf-8', 0, bytesRead);
-    if (bytesRead < CHUNK_SIZE)
-      break;
-  }
-  return rv.slice(0, -1);  // remove \n at the end
-}
-
 
 const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
   'import': NativeOk(
@@ -305,7 +292,7 @@ const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
 
   'readLine': Native({
     name: 'IO:readLine',
-    fun: () => Ok(Str(_readLine()))
+    fun: () => Ok(Str(fs.readFileSync(0, 'utf-8')))
   }),
 
   'debug': NativeOk(
