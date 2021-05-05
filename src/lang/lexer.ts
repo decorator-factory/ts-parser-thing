@@ -27,6 +27,7 @@ const getGroup = (m: RegExpMatchArray) => {
   for (const [k, v] of Object.entries(m.groups || {}))
     if (v !== undefined)
       return {k, v};
+  /* istanbul ignore next */
   throw new Error('Empty match');
 };
 
@@ -70,16 +71,13 @@ export const lex = (src: string, options: LexOptions = { includeWs: false }): st
   for (const m of src.matchAll(re)) {
     const {k, v} = getGroup(m);
 
-    if (m.index === undefined)
-      throw new Error('Impossible');
-
-    if (latestPos < m.index)
+    if (latestPos < m.index!)
       return `I don't understand: ${src.slice(latestPos, m.index)}`;
 
     if (!['ws'].includes(k) || options.includeWs)
       // @ts-ignore
       tokens.push({type: k, position: m.index, content: v})
-    latestPos = m.index + v.length;
+    latestPos = m.index! + v.length;
   }
   if (latestPos !== src.length)
     return `I don't understand: ${src.slice(latestPos)}`;

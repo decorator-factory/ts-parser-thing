@@ -429,5 +429,176 @@ describe('The parser turns a token stream into an AST', () => {
 
       assert.deepEqual(actual, expected)
     });
+  });
+
+  describe('Infix operators are tricky', () => {
+    const app = (f: ast.Expr | string, a: ast.Expr | string): ast.Expr => {
+      const fun = typeof f === 'string' ? ast.Name(f) : f;
+      const arg = typeof a === 'string' ? ast.Name(a) : a;
+      return ast.App({fun, arg});
+    }
+
+    it('takes operator priorities from the ParserOptions', () => {
+      const opts: ParseOptions = {
+        ...defaultOptions,
+        priorities: {
+          '+': Prio(6, 'left'),
+          '*': Prio(8, 'left'),
+        },
+      };
+      const [parser] = p.makeParser(opts);
+
+      const stream: TokenStream<Tok> = [
+        tok('name', 0,  'a'),
+        tok('op',   2,  '+'),
+        tok('name', 4,  'b'),
+        tok('op',   6,  '*'),
+        tok('name', 8,  'c'),
+        tok('op',   10, '+'),
+        tok('name', 12, 'd'),
+      ];
+      const B_TIMES_C = app(app('*', 'b'), 'c');
+      const A_PLUS_B_TIMES_C = app(app('+', 'a'), B_TIMES_C);
+      const expr = app(app('+', A_PLUS_B_TIMES_C), 'd');
+
+      const actual = parser.parse(stream);
+      const expected: typeof actual = Ok([expr, []]);
+
+      assert.deepEqual(actual, expected);
+    });
+
+    it('if + is left-associative, a + b + c means (a + b) + c', () => {
+      const opts: ParseOptions = {
+        ...defaultOptions,
+        priorities: {
+          '+': Prio(6, 'left'),
+        },
+      };
+      const [parser] = p.makeParser(opts);
+
+      const stream: TokenStream<Tok> = [
+        tok('name', 0,  'a'),
+        tok('op',   2,  '+'),
+        tok('name', 4,  'b'),
+        tok('op',   6,  '+'),
+        tok('name', 8,  'c'),
+      ];
+
+      const A_PLUS_B = app(app('+', 'a'), 'b');
+      const expr = app(app('+', A_PLUS_B), 'c');
+
+      const actual = parser.parse(stream);
+      const expected: typeof actual = Ok([expr, []])
+
+      assert.deepEqual(actual, expected);
+    });
+
+    it('if |? is right-associative, a |? b |? c means a |? (b |? c)', () => {
+      const opts: ParseOptions = {
+        ...defaultOptions,
+        priorities: {
+          '|?': Prio(6, 'right'),
+        },
+      };
+      const [parser] = p.makeParser(opts);
+
+      const stream: TokenStream<Tok> = [
+        tok('name', 0,  'a'),
+        tok('op',   2,  '|?'),
+        tok('name', 5,  'b'),
+        tok('op',   7,  '|?'),
+        tok('name', 10,  'c'),
+      ];
+
+      const B_OR_C = app(app('|?', 'b'), 'c');
+      const expr = app(app('|?', 'a'), B_OR_C);
+
+      const actual = parser.parse(stream);
+      const expected: typeof actual = Ok([expr, []])
+
+      assert.deepEqual(actual, expected);
+    });
+
+    it('uses backtickPriority for the priority of backticked expressions', () => {
+      const opts: ParseOptions = {
+        ...defaultOptions,
+        priorities: {
+          '+': Prio(3, 'left'),
+        },
+        backtickPriority: Prio(4, 'left')
+      };
+      const [parser] = p.makeParser(opts);
+
+      const stream: TokenStream<Tok> = [
+        tok('name',     0, 'a'),
+        tok('op',       1, '+'),
+        tok('name',     2, 'b'),
+        tok('backtick', 3, '`'),
+        tok('name',     4, 'f'),
+        tok('backtick', 5, '`'),
+        tok('name',     6, 'c'),
+      ];
+
+      const B_F_C = app(app('f', 'b'), 'c');
+      const expr = app(app('+', 'a'), B_F_C)
+
+      const actual = parser.parse(stream);
+      const expected: typeof actual = Ok([expr, []]);
+
+      assert.deepEqual(actual, expected);
+    });
+
+    it('uses defaultPriority with unknown operator', () => {
+      const opts: ParseOptions = {
+        ...defaultOptions,
+        priorities: {},
+        defaultPriority: Prio(5, 'right'),
+      };
+      const [parser] = p.makeParser(opts);
+
+      const stream: TokenStream<Tok> = [
+        tok('name', 0, 'a'),
+        tok('op',   1, '&'),
+        tok('name', 2, 'b'),
+        tok('op',   3, '&'),
+        tok('name', 4, 'c'),
+      ];
+
+      const expr = app(app('&', 'a'), app(app('&', 'b'), 'c'));
+      const actual = parser.parse(stream);
+      const expected: typeof actual = Ok([expr, []]);
+    });
+
+    it('allows changing options on the fly', () => {
+      const opts1: ParseOptions = {
+        ...defaultOptions,
+        priorities: { '+': Prio(4, 'left') },
+      };
+      const opts2: ParseOptions = {
+        ...defaultOptions,
+        priorities: { '+': Prio(4, 'right') },
+      };
+      const [parser, setOptions] = p.makeParser(opts1);
+
+      const stream: TokenStream<Tok> = [
+        tok('name', 0, 'a'),
+        tok('op',   1, '+'),
+        tok('name', 2, 'b'),
+        tok('op',   3, '+'),
+        tok('name', 4, 'c'),
+      ];
+
+      const expr1 = app(app('+', app(app('+', 'a'), 'b')), 'c');
+      const actual1 = parser.parse(stream);
+      const expected1: typeof actual1 = Ok([expr1, []]);
+      assert.deepEqual(actual1, expected1);
+
+      setOptions(opts2);
+
+      const expr2 = app(app('+', 'a'), app(app('+', 'b'), 'c'));
+      const actual2 = parser.parse(stream);
+      const expected2: typeof actual1 = Ok([expr2, []]);
+      assert.deepEqual(actual2, expected2);
+    })
   })
 });

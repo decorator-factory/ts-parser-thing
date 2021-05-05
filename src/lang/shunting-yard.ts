@@ -12,9 +12,6 @@ import { matchExhaustive } from '@practical-fp/union-types';
 import { Op, Ops, Expr, App, Name, ParseOptions, Priority } from './ast';
 
 
-const never = <T>(msg: string = 'This should never happen'): T => { throw new Error(msg) };
-
-
 const opsToStream: (ops: Ops) => Iterable<{op: Op}|{app: Expr}> =
   function* (ops: Ops) {
     yield {app: ops.initial};
@@ -47,9 +44,9 @@ export const shuntingYard = (
   const prio = (op: Op) => getPriority(op, options);
 
   const reduce = () => {
-    const op = opStack.pop() || never<Op>();
-    const right: Expr = exprStack.pop() || never<Expr>();
-    const left: Expr = exprStack.pop() || never<Expr>();
+    const op = opStack.pop()!;
+    const right: Expr = exprStack.pop()!;
+    const left: Expr = exprStack.pop()!;
     const application: Expr =
       matchExhaustive(op, {
         ExprOp: expr => app(app(expr, left), right),
@@ -84,8 +81,9 @@ export const shuntingYard = (
   while (opStack.length > 0)
     reduce();
 
+  /* istanbul ignore if */
   if (exprStack.length !== 1)
-    never();
+    throw new Error('This should never happen');
 
   return exprStack[0];
 };
