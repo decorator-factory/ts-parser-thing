@@ -51,7 +51,7 @@ const DEFAULT_PARSER_OPTIONS = {
     '>>': Prio(3, 'left'),
     '|>': Prio(2, 'left'),
     '|?': Prio(3, 'right'),
-    '$': Prio(1, 'left'),
+    '$': Prio(1, 'right'),
   },
   backtickPriority: Prio(20, 'right'),
   defaultPriority: Prio(5, 'left'),

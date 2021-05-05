@@ -220,7 +220,7 @@ const ifThenElse = (ifExpr: Expr, thenExpr: Expr, elseExpr: Expr, env: Env): Par
     return Err(UnexpectedType({expected: 'boolean', got: condition.ok}));
 
   return interpret(
-    condition.ok ? thenExpr : elseExpr,
+    condition.ok.value ? thenExpr : elseExpr,
     env
   );
 };
