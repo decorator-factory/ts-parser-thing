@@ -24,7 +24,7 @@ export type Tok =
   | 'semicolon'
 
 const getGroup = (m: RegExpMatchArray) => {
-  for (const [k, v] of Object.entries(m.groups || {}))
+  for (const [k, v] of Object.entries(m.groups!))
     if (v !== undefined)
       return {k, v};
   /* istanbul ignore next */
@@ -114,10 +114,7 @@ const tokenColor = (tokenType: Tok): keyof ColorHandle => ({
 const _highlightGen = function* (tokens: TokenStream<Tok>, h: ColorHandle) {
   for (const token of tokens){
     const col = tokenColor(token.type);
-    if (col === null)
-      yield token.content;
-    else
-      yield h[col](token.content);
+    yield h[col](token.content);
   }
 };
 

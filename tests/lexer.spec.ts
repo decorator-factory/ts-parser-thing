@@ -1,5 +1,6 @@
 import { assert } from 'chai';
-import { lex, Tok } from '../src/lang/lexer';
+import { highlightCode, lex, Tok } from '../src/lang/lexer';
+import { ColorHandle, identityColorHandle } from '../src/lang/color';
 
 
 const tok = (type: Tok, position: number, content: string) =>
@@ -40,6 +41,13 @@ describe('The lexer should split the text into tokens', () => {
       () => assert.deepEqual(lex('fooBaR_a1235?!!'), [tok('name', 0, 'fooBaR_a1235?!!')])
     );
     it(
+      "doesn't allow non-latin letters",
+      () => {
+        assert.isString(lex('foo жжж bar'));
+        assert.isString(lex('абв'));
+      }
+    );
+    it(
       "doesn't allow digits in the beginning of the name",
       () => assert.notDeepEqual(lex('2pac'), [tok('name', 0, '2pac')])
     );
@@ -75,15 +83,45 @@ describe('The lexer should split the text into tokens', () => {
     it(
       'includes whitespace tokens',
       () => assert.deepEqual(
-        lex('foo bar baz', {includeWs: true}),
+        lex('foo bar baz # bonk', {includeWs: true}),
         [
           tok('name', 0, 'foo'),
           tok('ws', 3, ' '),
           tok('name', 4, 'bar'),
           tok('ws', 7, ' '),
           tok('name', 8, 'baz'),
+          tok('ws', 11, ' '),
+          tok('ws', 12, '# bonk'),
         ]
       )
-    )
+    );
   });
-})
+});
+
+describe('highlightCode applies a color scheme to code by tokenizing it', () => {
+  it('returns a successful result when the code contains only valid tokens', () => {
+    assert.deepEqual(
+      highlightCode('foo bar baz ( # hello', identityColorHandle),
+      [true, 'foo bar baz ( # hello']
+    );
+  });
+
+  it("returns an error when part of the code can't be tokenized", () => {
+    assert.deepEqual(
+      highlightCode('foo bar жжж ( # hello', identityColorHandle)[0],
+      false
+    );
+  });
+
+  it('uses the provided color handle to highlight tokens', () => {
+    const handle: ColorHandle = {
+      ...identityColorHandle,
+      comment: s => s.replace('# ', '# tis but a '),
+      name: s => `<${s}>`,
+    }
+    assert.deepEqual(
+      highlightCode('foo bar # scratch', handle),
+      [true, '<foo> <bar> # tis but a scratch']
+    );
+  });
+});
