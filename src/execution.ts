@@ -1,5 +1,5 @@
 import * as readline from 'readline';
-import { Interpreter, LangError } from './lang/interpreter';
+import { Interpreter, IOHandle, LangError } from './lang/interpreter';
 import { prettyPrint, RuntimeError, Value } from './lang/runtime';
 import { ColorHandle, identityColorHandle } from './lang/color';
 import chalk from 'chalk';
@@ -7,6 +7,16 @@ import { Either, Err, Ok } from './either';
 
 import { renderDim } from './lang/units';
 import { matchExhaustive } from '@practical-fp/union-types';
+
+
+import * as fs from 'fs';
+
+
+export const defaultIOHandle: IOHandle = {
+  readLine: () => fs.readFileSync(0, 'utf-8'),
+  writeLine: (s: string) => console.log(s),
+  exit: () => { process.exit() },
+}
 
 
 /**
@@ -98,7 +108,7 @@ const colors = (() => {
 export const readEvalPrintLoop = () => {
   const formatPrompt = () => chalk.greenBright('λ > ');
 
-  const interpreter = new Interpreter();
+  const interpreter = new Interpreter(defaultIOHandle);
 
   const rl = readline.createInterface({
     input: process.stdin,

@@ -113,20 +113,13 @@ export interface IOHandle {
 }
 
 
-export const defaultIOHandle: IOHandle = {
-  readLine: () => fs.readFileSync(0, 'utf-8'),
-  writeLine: (s: string) => console.log(s),
-  exit: () => { process.exit() },
-}
-
-
 export class Interpreter {
   private env: Env;
   private stParser: StatefulParser;
   private ioHandle: IOHandle;
 
   constructor(
-    ioHandle: IOHandle = defaultIOHandle,
+    ioHandle: IOHandle,
     parentEnv: Env | null = null,
     parser: StatefulParser | null = null,
   ) {

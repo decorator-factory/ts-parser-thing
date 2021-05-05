@@ -1,10 +1,10 @@
 import * as fs from 'fs';
-import { runCode, readEvalPrintLoop } from './execution';
+import { runCode, readEvalPrintLoop, defaultIOHandle } from './execution';
 import { Interpreter } from './lang/interpreter';
 
 
 const simplyRunCode = (sourceCode: string) => {
-  const interpreter = new Interpreter();
+  const interpreter = new Interpreter(defaultIOHandle);
   const result = runCode(interpreter, sourceCode);
   if ('err' in result)
     console.error(result.err);
