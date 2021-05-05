@@ -37,21 +37,3 @@ export class Lang<T extends string>{
     return this.oneOf(t).map(({content}) => read(content));
   }
 }
-
-
-export const consume =
-  <T extends string, A>(
-    tokenParser: TokenParser<T, A>,
-    source: TokenStream<T>
-  ): Either<ParseError, A> => {
-    const ea = tokenParser.parse(source);
-    if ('err' in ea)
-      return Err(ea.err);
-    const [a, rest] = ea.ok;
-    if (rest.length !== 0)
-      return Err({
-        recoverable: false,
-        msg: `Syntax error at position ${rest[0].position}, starting with ${rest[0].content}`
-      });
-    return Ok(a);
-  }

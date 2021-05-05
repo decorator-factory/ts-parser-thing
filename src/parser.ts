@@ -1,7 +1,7 @@
-import { Either, dispatch, Ok, Err, ParseError } from './either';
+import { Either, Ok, Err, ParseError } from './either';
 import * as Ei from './either';
 
-export {Either, dispatch, Ok, Err, Ei}
+export {Either, Ok, Err, Ei}
 export type ParserF<S, A> = (src: S) => Either<ParseError, readonly [A, S]>;
 
 
@@ -99,22 +99,6 @@ export class Parser<S, A> {
    */
   orSame(other: Parser<S, A>): Parser<S, A> {
     return this.or(other);
-  }
-
-  /**
-   * Like `or`, but accepts a parser factory instead of a parser
-   */
-  orLazy<B>(other: () => Parser<S, B>): Parser<S, A | B> {
-    // @ts-ignore
-    return parser(src => {
-      const ea = this.parse(src);
-      if ('ok' in ea)
-        return ea;
-      if (!ea.err.recoverable)
-        return ea;
-      const eb = other().parse(src);
-      return eb
-    })
   }
 }
 
