@@ -66,7 +66,7 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
     return Comb.surroundedBy(
       L.oneOf('lbr'),
       tableContents,
-      L.oneOf('rbr').orBail('Unclosed { in table literal'),
+      L.oneOf('rbr'),
     ).map(Table);
   })();
 
@@ -233,8 +233,10 @@ const unparseApp = ({fun, arg}: {fun: Expr, arg: Expr}, col: ColorHandle): strin
 };
 
 
-const extractRightOperatorSection = (lam: Lambda): [string, Expr] | null => {
-  // right operator section, like `(- 5)`, is encoded as a lambda: {_: _ - 5}
+const extractLeftOperatorSection = (lam: Lambda): [string, Expr] | null => {
+  // Left operator section, like `(- 5)`, is encoded as a lambda: {_: _ - 5}
+  // If the function is a left operator section, return the operator and the
+  // associated expression.
 
   if (
     lam.arg.tag === 'ArgSingle'
@@ -246,17 +248,15 @@ const extractRightOperatorSection = (lam: Lambda): [string, Expr] | null => {
     && lam.expr.value.fun.value.arg.tag === 'Name'
     && lam.expr.value.fun.value.arg.value === '_'
   )
-    return [lam.expr.value.fun.value.fun.value, lam.expr.value.fun.value.arg];
+    return [lam.expr.value.fun.value.fun.value, lam.expr.value.arg];
   else
     return null;
 };
 
 const unparseLam = (lam: Lambda, col: ColorHandle): string => {
-  // right operator section, like `(- 5)`, is encoded as a lambda: {_: _ - 5}
-  // TODO: refactor
-  const ros = extractRightOperatorSection(lam);
-  if (ros !== null) {
-    const [operator, expr] = ros;
+  const leftSection = extractLeftOperatorSection(lam);
+  if (leftSection !== null) {
+    const [operator, expr] = leftSection;
     return '(' + col.name(operator) + ' ' + unparse(expr, col) + ')';
   }
 
