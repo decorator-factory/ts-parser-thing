@@ -12,10 +12,10 @@
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "program": "${workspaceFolder}/dist/index.js",
+            "program": "${workspaceFolder}/dist/src/index.js",
             "args": ["repl"],
             "outFiles": [
-                "${workspaceFolder}/**/*.js"
+                "${workspaceFolder}/dist/*.js"
             ]
         }
     ]
