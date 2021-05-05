@@ -5,14 +5,8 @@ import * as ast from '../src/lang/ast';
 import Big from 'big.js';
 import { assert } from 'chai';
 import { inspect } from 'util';
+import { pureIOHandle, testIO, testPure } from './_helpers';
 
-
-
-export const pureIOHandle: IOHandle = {
-  exit: () => {},
-  writeLine: line => {},
-  readLine: () => '',
-};
 
 
 describe('The interpreter should evaluate an AST', () => {
@@ -61,60 +55,11 @@ describe('The interpreter should evaluate an AST', () => {
 });
 
 
-const test = (description: string, input: string, output: string | {ok: rt.Value} | {error: LangError['type']}) => {
-  it(description, () => {
-    const actual = new Interpreter(pureIOHandle).runLine(input);
-
-    if (typeof output === 'string') {
-      const expected = new Interpreter(pureIOHandle).runLine(output);
-      assert.deepEqual(expected, actual)
-    } else if ('ok' in output) {
-      assert.deepEqual({ok: output.ok}, actual);
-    } else {
-      assert.property(actual, 'err');
-      assert.deepEqual((actual as any).err.type, output.error);
-    }
-  })
-};
-
-
-const testIO = (
-  description: string,
-  code: string,
-  stdin: readonly string[],
-  expectedStdout: readonly string[],
-) => {
-  let lineIndex = 0;
-  const actualStdout: string[] = [];
-
-  const handle: IOHandle = {
-    readLine: () => {
-      if (lineIndex >= stdin.length)
-        throw new Error('End of input');
-      const line = stdin[lineIndex];
-      lineIndex++;
-      return line;
-    },
-    writeLine: line => actualStdout.push(line),
-    exit: () => {}
-  };
-
-
-  it(description, () => {
-    const i = new Interpreter(handle);
-    const rv = i.runMultiline(code);
-    if (!('ok' in rv))
-      assert.fail(`Expected success, got: ${inspect(rv, {depth:null})}`);
-    assert.deepEqual(actualStdout, expectedStdout);
-  })
-};
-
-
 describe('The interpreter integrates the parser and the runtime', () => {
-  test('2 + 2 = 4', '2 + 2', '4');
-  test('3000 * 5.1 = 15300', '3000 * 5.1', '15300');
-  test('reports tokenization (lexing) errors', 'жжж', {error: 'lexError'});
-  test('reports parsing errors', '()[[[', {error: 'parseError'});
+  testPure('2 + 2 = 4', '2 + 2', '4');
+  testPure('3000 * 5.1 = 15300', '3000 * 5.1', '15300');
+  testPure('reports tokenization (lexing) errors', 'жжж', {error: 'lexError'});
+  testPure('reports parsing errors', '()[[[', {error: 'parseError'});
   testIO(
     'can interact with I/O',
     'IO:log (IO:readLine {})',

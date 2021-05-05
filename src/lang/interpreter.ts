@@ -114,7 +114,7 @@ export interface IOHandle {
 
 
 export class Interpreter {
-  private env: Env;
+  public env: Env;
   private stParser: StatefulParser;
   private ioHandle: IOHandle;
 
