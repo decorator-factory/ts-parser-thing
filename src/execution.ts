@@ -98,7 +98,7 @@ const colors = (() => {
 export const readEvalPrintLoop = () => {
   const formatPrompt = () => chalk.greenBright('λ > ');
 
-  const interpreter = new Interpreter(() => process.exit());
+  const interpreter = new Interpreter();
 
   const rl = readline.createInterface({
     input: process.stdin,

@@ -2,13 +2,10 @@ import { Expr, ParseOptions, Prio, Priority } from './ast';
 import { makeParser } from './parser';
 import {
   applyFunction,
-  asFun,
   asStr,
   asStrOrSymb,
-  asTable,
   Bool,
   Env,
-  FunT,
   interpret,
   Native,
   NativeOk,
@@ -36,6 +33,7 @@ import Fraction from 'fraction.js';
 import Big from 'big.js';
 
 import * as fs from 'fs';
+import * as util from 'util';
 
 
 
@@ -107,17 +105,32 @@ export type LangError =
   | { type: 'runtimeError', err: RuntimeError }
   ;
 
+
+export interface IOHandle {
+  readLine: () => string;
+  writeLine: (s: string) => void;
+  exit: () => void;
+}
+
+
+export const defaultIOHandle: IOHandle = {
+  readLine: () => fs.readFileSync(0, 'utf-8'),
+  writeLine: (s: string) => console.log(s),
+  exit: () => { process.exit() },
+}
+
+
 export class Interpreter {
   private env: Env;
   private stParser: StatefulParser;
-  private exit: () => void;
+  private ioHandle: IOHandle;
 
   constructor(
-    exit: () => void = () => {},
+    ioHandle: IOHandle = defaultIOHandle,
     parentEnv: Env | null = null,
     parser: StatefulParser | null = null,
   ) {
-    this.exit = exit;
+    this.ioHandle = ioHandle;
     this.stParser = parser || new StatefulParser();
     this.env = makeEnv(this.envH, parentEnv);
   }
@@ -178,7 +191,7 @@ export class Interpreter {
       parser: this.stParser,
       setName: (name, value) => { this.setName(name, value); },
       deleteName: name => { this.deleteName(name); },
-      exit: this.exit,
+      io: this.ioHandle,
     };
   }
 
@@ -210,7 +223,7 @@ export type EnvHandle = {
   parser: StatefulParser,
   setName: (name: string, value: Value) => void,
   deleteName: (name: string) => void,
-  exit: () => void,
+  io: IOHandle;
 };
 
 
@@ -226,10 +239,9 @@ const _makeModule = (
 };
 
 
-const _dumpEnv = (env: Env, depth: number = 0) => {
-  [...env.names.entries()].sort().forEach(
-    ([k, v]) => console.log('  '.repeat(depth) + `${k} : ${prettyPrint(v)}`)
-  );
+const _dumpEnv = function* (env: Env, depth: number = 0) {
+  for (const [k, v] of [...env.names.entries()].sort())
+    yield '  '.repeat(depth) + `${k} : ${prettyPrint(v)}`;
   if (env.parent !== null)
     _dumpEnv(env.parent, depth + 1);
 };
@@ -285,20 +297,20 @@ const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
   'log': Native({
     name: 'IO:log',
     fun: sV => Ei.flatMap(asStr(sV), s => {
-      console.log(s);
+      h.io.writeLine(s);
       return Ok(unit);
     })
   }),
 
   'readLine': Native({
     name: 'IO:readLine',
-    fun: () => Ok(Str(fs.readFileSync(0, 'utf-8')))
+    fun: () => Ok(Str(h.io.readLine()))
   }),
 
   'debug': NativeOk(
     'IO:debug',
      a => {
-      console.log(prettyPrint(a));
+      h.io.writeLine(prettyPrint(a));
       return a;
     }),
 
@@ -334,7 +346,8 @@ const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
   'locals': NativeOk(
     'IO:locals',
     (_, env) => {
-      _dumpEnv(env);
+      for (const line of _dumpEnv(env))
+        h.io.writeLine(line);
       return unit;
     }
   ),
@@ -342,7 +355,7 @@ const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
   'exit': NativeOk(
     'IO:exit',
     () => {
-      h.exit();
+      h.io.exit();
       return unit;
     }
   ),
@@ -374,10 +387,10 @@ const ModuleRefl = (h: EnvHandle) => _makeModule('Refl', Map({
       Ei.map(asStr(v), source => {
         const stream  = lex(source);
         if (typeof stream === 'string') {
-          console.error(stream);
+          h.io.writeLine('Error: ' + stream);
         } else {
           for (const tok of stream)
-            console.log(`${tok.type} @${tok.position}: ${tok.content}`);
+            h.io.writeLine(`${tok.type} @${tok.position}: ${tok.content}`);
         }
         return unit;
       })
@@ -388,10 +401,10 @@ const ModuleRefl = (h: EnvHandle) => _makeModule('Refl', Map({
       Ei.map(asStr(v), source => {
         const stream  = lex(source);
         if (typeof stream === 'string') {
-          console.error(stream);
+          h.io.writeLine('Error: ' + stream);
         } else {
           const parsed = h.parser.parseMultiline(stream);
-          console.dir(parsed, {depth: null})
+          h.io.writeLine(util.inspect(parsed, {depth: null}));
         }
         return unit;
       })

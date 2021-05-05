@@ -4,7 +4,7 @@ import { Interpreter } from './lang/interpreter';
 
 
 const simplyRunCode = (sourceCode: string) => {
-  const interpreter = new Interpreter(() => process.exit());
+  const interpreter = new Interpreter();
   const result = runCode(interpreter, sourceCode);
   if ('err' in result)
     console.error(result.err);
