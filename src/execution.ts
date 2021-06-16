@@ -9,11 +9,11 @@ import { renderDim } from './lang/units';
 import { matchExhaustive } from '@practical-fp/union-types';
 
 
-import * as fs from 'fs';
+import * as readlieSync from 'readline-sync';
 
 
 export const defaultIOHandle: IOHandle = {
-  readLine: () => fs.readFileSync(0, 'utf-8'),
+  readLine: () => readlieSync.prompt({prompt: ''}),
   writeLine: (s: string) => console.log(s),
   exit: () => { process.exit() },
 }
