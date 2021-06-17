@@ -2,8 +2,6 @@ IO:define :cons (head rest. {h: head, r: rest, empty: false});
 
 IO:define :nil {empty: true};
 
-IO:define :match (empty nonempty list. if list:empty then empty else nonempty (list:h) (list:r));
-
 IO:define :map
     (f list.
         if list:empty
@@ -26,17 +24,29 @@ IO:define :reduce
         if list:empty
             then initial
             else reduce f (f initial (list:h)) (list:r)
+    );
 
 IO:define :reverse
     (reduce (acc item. cons item acc) nil);
 
 IO:define :_of
-    (after acc x.
+    (after acc sym x.
         if Sym:is :nil x
             then after acc
-            else _of after (cons x acc)
+            else _of after (cons x acc) sym
     );
 
-IO:define :of (_of reverse nil);
+IO:define :of_using (_of reverse nil);
 
-{ cons: cons, nil: nil, map: map, filter: filter, reduce: reduce, of: of, reverse: reverse }
+IO:define :of (of_using :nil);
+
+{
+    cons: cons,
+    nil: nil,
+    map: map,
+    filter: filter,
+    reduce: reduce,
+    of: of,
+    of_using: of_using,
+    reverse: reverse,
+}
