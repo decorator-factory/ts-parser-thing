@@ -8,7 +8,7 @@ export const pureIOHandle: IOHandle = {
   exit: () => {},
   writeLine: _line => {},
   readLine: () => '',
-  resolveModule: (moduleName: string) => null,
+  resolveModule: () => null,
 };
 
 
@@ -52,7 +52,7 @@ export const testIO = (
     },
     writeLine: line => actualStdout.push(line),
     exit: () => {},
-    resolveModule: (moduleName: string) => null,
+    resolveModule: () => null,
   };
 
 

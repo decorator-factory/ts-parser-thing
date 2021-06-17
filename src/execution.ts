@@ -26,7 +26,10 @@ export const defaultIOHandle: IOHandle = {
     if (moduleName in moduleCache)
       return {ok: moduleCache[moduleName]};
 
-    const searchPaths = [STDLIB_PATH, location, process.cwd()];
+    const searchPaths =
+      moduleName.startsWith('./') || moduleName.startsWith('../')
+      ? [location, process.cwd()]
+      : [STDLIB_PATH];
 
     for (const base of searchPaths) {
       const modulePath = path.resolve(base, moduleName);
