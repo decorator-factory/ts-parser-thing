@@ -1,5 +1,3 @@
-IO:define :$= (IO:define);
-
-:line $= IO:readLine {};
+:line .= IO:readLine {};
 
 IO:log line;
