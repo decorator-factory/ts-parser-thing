@@ -65,6 +65,7 @@ export type RuntimeError =
   | Variant<'UndefinedName', string>
   | Variant<'DimensionMismatch', {left: Dimension, right: Dimension}>
   | Variant<'NotInDomain', {value: Value, explanation: string}>
+  | Variant<'Other', Value>
 
 
 export const {
@@ -73,6 +74,7 @@ export const {
   UndefinedName,
   DimensionMismatch,
   NotInDomain,
+  Other,
 } = impl<RuntimeError>();
 
 
@@ -83,7 +85,8 @@ export const renderRuntimeError = (error: RuntimeError): Value => {
       MissingKey: key => ({key: Str(key)}),
       UndefinedName: name => ({name: Str(name)}),
       DimensionMismatch: ({left, right}) => ({left: Unit(1, left), right: Unit(1, right)}),
-      NotInDomain: ({value, explanation}) => ({value, explanation: Str(explanation)})
+      NotInDomain: ({value, explanation}) => ({value, explanation: Str(explanation)}),
+      Other: value => ({value}),
     });
   return Table(Map({
     error: Str(error.tag),

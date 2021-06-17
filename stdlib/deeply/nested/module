@@ -1,0 +1,5 @@
+IO:require '../../list';
+
+IO:debug (IO: location);
+
+42

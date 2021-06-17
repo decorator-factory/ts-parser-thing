@@ -1,0 +1,6 @@
+# Example of handling circular imports
+
+
+IO:define :hello (IO:require 'circular');
+
+IO:debug hello;  # This will output ':__circular_import__'

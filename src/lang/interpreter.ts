@@ -21,6 +21,7 @@ import {
   asUnit,
   DimensionMismatch,
   NotInDomain,
+  Other,
 } from './runtime';
 import { Map } from 'immutable';
 import { lex, Tok } from './lexer';
@@ -110,11 +111,13 @@ export interface IOHandle {
   readLine: () => string;
   writeLine: (s: string) => void;
   exit: () => void;
+  resolveModule: (location: string, moduleName: string) => Either<LangError, Value> | null;
 }
 
 
 export class Interpreter {
   public env: Env;
+  private location: string;
   private stParser: StatefulParser;
   private ioHandle: IOHandle;
 
@@ -122,9 +125,11 @@ export class Interpreter {
     ioHandle: IOHandle,
     parentEnv: Env | null = null,
     parser: StatefulParser | null = null,
+    location: string | null = null,
   ) {
     this.ioHandle = ioHandle;
     this.stParser = parser || new StatefulParser();
+    this.location = location || process.cwd();
     this.env = makeEnv(this.envH, parentEnv);
   }
 
@@ -159,24 +164,79 @@ export class Interpreter {
   }
 
   public runMultiline(source: string): Either<LangError, Value[]> {
+    const ok: Value[] = [];
+    let err: LangError | null = null;
+
+    this.runMultilineWithCallback(
+      source,
+      value => ok.push(value),
+      e => err = e,
+    );
+
+    if (err !== null)
+      return {err};
+
+    return {ok};
+
+  }
+
+  public runMultilineIgnore(source: string): LangError | null {
+    let err = null as LangError | null;
+
+    this.runMultilineWithCallback(
+      source,
+      () => {},
+      e => err = e,
+    );
+
+    return err;
+  }
+
+  public runMultilineReturnLast(source: string): Either<LangError, Value> {
+    let ok = null as Value | null;
+    let err = null as LangError | null;
+
+    this.runMultilineWithCallback(
+      source,
+      v => ok = v,
+      e => err = e,
+    );
+
+    if (err !== null)
+      return {err};
+
+    if (ok === null)
+      return {err: {type: 'runtimeError', err: Other(Str('runMultilineReturnLast: no value got produced'))}};
+
+    return {ok};
+  }
+
+  public runMultilineWithCallback(source: string, onValue: (v: Value) => void, onError: (e: LangError) => void): void {
     source = source.trim();
 
     const stream = lex(source);
-    if (typeof stream === 'string')
-      return Err({ type: 'lexError', msg: stream });
+    if (typeof stream === 'string') {
+      onError({ type: 'lexError', msg: stream })
+      return;
+    }
 
     const parsed = this.stParser.parseMultiline(stream);
 
-    return Ei.flatMap(parsed, expressions => {
-      const values: Value[] = [];
-      for (const expr of expressions) {
-        const maybeValue = this.runAst(expr);
-        if ('err' in maybeValue)
-          return maybeValue;
-        values.push(maybeValue.ok);
+    if ('err' in parsed) {
+      onError(parsed.err);
+      return;
+    }
+
+    const expressions = parsed.ok
+
+    for (const expr of expressions) {
+      const maybeValue = this.runAst(expr);
+      if ('err' in maybeValue) {
+        onError(maybeValue.err);
+        return;
       }
-      return Ok(values);
-    })
+      onValue(maybeValue.ok);
+    }
   }
 
   private get envH(): EnvHandle {
@@ -185,6 +245,7 @@ export class Interpreter {
       setName: (name, value) => { this.setName(name, value); },
       deleteName: name => { this.deleteName(name); },
       io: this.ioHandle,
+      location: this.location,
     };
   }
 
@@ -216,7 +277,8 @@ export type EnvHandle = {
   parser: StatefulParser,
   setName: (name: string, value: Value) => void,
   deleteName: (name: string) => void,
-  io: IOHandle;
+  io: IOHandle,
+  location: string,
 };
 
 
@@ -272,20 +334,25 @@ const _binOpId = (
 
 
 const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
-  'import': NativeOk(
-    'IO:import',
-    tV => Native({
-      name: `IO:import ${prettyPrint(tV)}`,
-      fun: (sV, e) => Ei.flatMap(asStrOrSymb(sV), name => {
-        h.deleteName(name);
-        const v = applyFunction(tV, Symbol(name), e);
-        if ('err' in v)
-          return v;
-        h.setName(name, v.ok);
-        return v;
-      })
-    })
-  ),
+  'require': Native({
+    name: 'IO:require',
+    fun: nameV => Ei.flatMap(asStr(nameV), name => {
+      const module = h.io.resolveModule(h.location, name);
+      if (module === null)
+        return Err(Other(Str(`module not found: ${name}`)));
+
+      if ('err' in module) {
+        if (module.err.type === 'runtimeError')
+          return Err(module.err.err)
+        else
+          return Err(Other(Str(`${module.err.type}: ${module.err.msg}`)))
+      }
+
+      return module;
+    }),
+  }),
+
+  'location': Str(h.location),
 
   'log': Native({
     name: 'IO:log',

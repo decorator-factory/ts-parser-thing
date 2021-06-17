@@ -1,6 +1,6 @@
 import * as readline from 'readline';
 import { Interpreter, IOHandle, LangError } from './lang/interpreter';
-import { prettyPrint, RuntimeError, Value } from './lang/runtime';
+import { prettyPrint, RuntimeError, Symbol, Value } from './lang/runtime';
 import { ColorHandle, identityColorHandle } from './lang/color';
 import chalk from 'chalk';
 import { Either, Err, Ok } from './either';
@@ -9,13 +9,52 @@ import { renderDim } from './lang/units';
 import { matchExhaustive } from '@practical-fp/union-types';
 
 
+import * as path from 'path';
+import * as fs from 'fs';
 import * as readlieSync from 'readline-sync';
 
+
+const moduleCache: Record<string, Value> = {};
+
+const STDLIB_PATH = path.resolve(__dirname, '../../stdlib');
 
 export const defaultIOHandle: IOHandle = {
   readLine: () => readlieSync.prompt({prompt: ''}),
   writeLine: (s: string) => console.log(s),
   exit: () => { process.exit() },
+  resolveModule: (location: string, moduleName: string) => {
+    if (moduleName in moduleCache)
+      return {ok: moduleCache[moduleName]};
+
+    const searchPaths = [STDLIB_PATH, location, process.cwd()];
+
+    for (const base of searchPaths) {
+      const modulePath = path.resolve(base, moduleName);
+
+      let source: string;
+      try {
+        source = fs.readFileSync(modulePath, { encoding: 'utf-8' });
+      } catch {
+        continue;
+      }
+
+      const interpreter = new Interpreter(defaultIOHandle, null, null, path.dirname(modulePath));
+
+      // If a module tries to import itself circularly, it will get this instead:
+      moduleCache[moduleName] = Symbol('__circular_import__');
+
+      const result = interpreter.runMultilineReturnLast(source);
+
+      if ('ok' in result)
+        moduleCache[moduleName] = result.ok;
+      else
+        delete moduleCache[moduleName];
+
+      return result;
+    }
+
+    return null;
+  }
 }
 
 
@@ -34,6 +73,7 @@ export const runCode = (() => {
     'UndefinedName': 'name not defined',
     'DimensionMismatch': 'dimension mismatch',
     'NotInDomain': 'value not in domain',
+    'Other': 'other',
   }[k]);
 
   const printErrorDetails = (e: RuntimeError): string =>
@@ -42,7 +82,8 @@ export const runCode = (() => {
       UndefinedName: name => name,
       UnexpectedType: ({expected, got}) => `expected ${expected}, got ${prettyPrint(got, colors)}`,
       DimensionMismatch: ({left, right}) => `between ${renderDim(left)} and ${renderDim(right)}`,
-      NotInDomain: ({value, explanation}) => `${value}, ${explanation}`
+      NotInDomain: ({value, explanation}) => `${value}, ${explanation}`,
+      Other: value => prettyPrint(value, colors),
     });
 
   const printError = (e: LangError): string => {
