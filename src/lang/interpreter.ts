@@ -40,6 +40,7 @@ import Big from 'big.js';
 
 import * as fs from 'fs';
 import * as util from 'util';
+import { matchWildcard, WILDCARD } from '@practical-fp/union-types';
 
 
 
@@ -513,9 +514,9 @@ const ModuleRefl = (h: EnvHandle) => _makeModule('Refl', Map({
 
 const ModuleSym = _makeModule('Sym', Map({
   'is': Native({
-    name: 'is',
+    name: 'Sym:is',
     fun: symV => Ei.map( asSymb(symV), sym => NativeOk(
-      () => `is :${sym}`,
+      () => `Sym:is :${sym}`,
       v => {
         if (!Symbol.is(v))
           return Bool(false);
@@ -551,6 +552,38 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
       }
     }))
   );
+
+  const _weakEquality = (a: Value, b: Value): boolean => {
+    if (a.tag > b.tag)
+      return _weakEquality(b, a);
+
+    return matchWildcard(a, {
+      Str: v => b.tag === 'Str' && b.value === v,
+
+      Unit: u => b.tag === 'Unit' && u.equals(b.value),
+
+      Symbol: s => b.tag === 'Symbol' && b.value === s,
+
+      Bool: x => b.tag === 'Bool'  && b.value === x,
+
+      Table: aTable => {
+        if (b.tag !== 'Table')
+          return false;
+
+        const bTable = b.value;
+
+        if ([...aTable.keys()].sort() !== [...bTable.keys()].sort())
+          return false;
+
+        for (const [k, v] of aTable.entries())
+          if (!_weakEquality(v, bTable.get(k)!))
+            return false;
+        return true;
+      },
+
+      [WILDCARD]: () => false,
+    });
+  }
 
   return {
     parent,
@@ -592,6 +625,8 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
           }));
         return Ok(Unit(rv));
       }),
+
+      '~=': _binOp('~=', asAny, asAny, (a, b) => Ok(Bool(_weakEquality(a, b)))),
 
       '.=': _binOp('.=', asSymb, asAny, (name, value, env) => {
         h.setName(name, value);
