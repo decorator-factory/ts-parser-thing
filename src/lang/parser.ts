@@ -287,7 +287,11 @@ export const unparse = (expr: Expr, col: ColorHandle = identityColorHandle, dept
     Symbol: value => col.constant(':' + value),
     Table: pairs =>
       col.punctuation('{')
-      + pairs.map(([k, v]) => `${col.name(k)}: ${unparse(v, col, depth+1)}`).join(', ')
+      + pairs.map(([k, v]) =>
+          Name.is(v) && v.value === k
+          ? col.name(k)
+          : `${col.name(k)}: ${unparse(v, col, depth+1)}`
+        ).join(', ')
       + col.punctuation('}'),
     App: app => unparseApp(app, col),
     Lam: lam => unparseLam(lam, col),
