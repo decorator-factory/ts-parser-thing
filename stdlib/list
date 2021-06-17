@@ -1,4 +1,4 @@
-:cons .= (head rest. {h: head, r: rest, empty: false});
+:cons .= (head rest. {head, rest, empty: false});
 
 :nil .= {empty: true};
 
@@ -6,16 +6,16 @@
     (f list.
         if list:empty
             then nil
-            else cons (list:h |> f) (list:r |> map f)
+            else cons (list:head |> f) (list:rest |> map f)
     );
 
 :filter .=
     (f list.
         if list:empty
             then nil
-            else if list:h |> f
-                then cons (list:h) (list:r |> filter r)
-                else filter f r
+            else if list:head |> f
+                then cons (list:head) (list:rest |> filter f)
+                else filter f (list:rest)
 
     );
 
@@ -23,7 +23,7 @@
     (f initial list.
         if list:empty
             then initial
-            else reduce f (f initial (list:h)) (list:r)
+            else reduce f (f initial (list:head)) (list:rest)
     );
 
 :reverse .=
@@ -41,12 +41,12 @@
 :of .= of_using :nil;
 
 {
-    cons: cons,
-    nil: nil,
-    map: map,
-    filter: filter,
-    reduce: reduce,
-    of: of,
-    of_using: of_using,
-    reverse: reverse,
+    cons,
+    nil,
+    map,
+    filter,
+    reduce,
+    of,
+    of_using,
+    reverse,
 }
