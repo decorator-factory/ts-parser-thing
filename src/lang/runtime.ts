@@ -139,10 +139,22 @@ export const asAny = (v: Value): Partial<Value> => {
 };
 
 
+export interface PrettyPrintOptions {
+  includeWhere: false
+}
+
+
+const defaultOpts: PrettyPrintOptions = {
+  includeWhere: false,
+};
+
+
+
 export const envRepr = (
   env: Env,
   keys: string[],
   col: ColorHandle = identityColorHandle,
+  opts: PrettyPrintOptions = defaultOpts,
   depth: number = 0
 ): string => {
   if (depth > 3)
@@ -151,30 +163,36 @@ export const envRepr = (
   const lines: string[] = [];
   for (const key of keys){
     const v = tryLookupName(key, env);
-    const vs = v === null ? '?' : prettyPrint(v, col, depth+1);
+    const vs = v === null ? '?' : prettyPrint(v, col, opts, depth+1);
     lines.push(`${key}: ${vs}`);
   }
   return col.punctuation('{') + lines.join(', ') + col.punctuation('}');
 }
 
 
-export const prettyPrint = (value: Value, col: ColorHandle = identityColorHandle, depth: number = 0): string => {
+export const prettyPrint = (
+  value: Value,
+  col: ColorHandle = identityColorHandle,
+  opts: PrettyPrintOptions = defaultOpts,
+  depth: number = 0
+): string => {
   if (depth > 12)
     return '...';
 
   return matchExhaustive(value, {
     Str: s => col.str(JSON.stringify(s)),
     Unit: u => col.num(u.toString()),
-    Fun: ({fun, closure}) => (fun.capturedNames.length === 0)
+    Fun: ({fun, closure}) =>
+      (fun.capturedNames.length === 0) || !opts.includeWhere
       ? `${unparse(Lam(fun), col, depth)}`
-      : `${unparse(Lam(fun), col, depth)} where ${envRepr(closure, fun.capturedNames, col, depth+1)}`,
+      : `${unparse(Lam(fun), col, depth)} where ${envRepr(closure, fun.capturedNames, col, opts, depth+1)}`,
     Native: ({name}) =>
       col.constant(typeof name === 'string' ? name : name()),
     Symbol: s => col.constant(':' + s),
     Bool: b => col.constant(`${b}`),
     Table: table => (
         col.punctuation('{')
-        + [...table.entries()].map(([k, v]) => `${col.name(k)}: ${prettyPrint(v, col, depth + 1)}`).join(', ')
+        + [...table.entries()].map(([k, v]) => `${col.name(k)}: ${prettyPrint(v, col, opts, depth + 1)}`).join(', ')
         + col.punctuation('}')
       ),
   })
