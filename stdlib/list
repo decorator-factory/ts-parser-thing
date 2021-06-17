@@ -1,15 +1,15 @@
-IO:define :cons (head rest. {h: head, r: rest, empty: false});
+:cons .= (head rest. {h: head, r: rest, empty: false});
 
-IO:define :nil {empty: true};
+:nil .= {empty: true};
 
-IO:define :map
+:map .=
     (f list.
         if list:empty
             then nil
             else cons (list:h |> f) (list:r |> map f)
     );
 
-IO:define :filter
+:filter .=
     (f list.
         if list:empty
             then nil
@@ -19,26 +19,26 @@ IO:define :filter
 
     );
 
-IO:define :reduce
+:reduce .=
     (f initial list.
         if list:empty
             then initial
             else reduce f (f initial (list:h)) (list:r)
     );
 
-IO:define :reverse
-    (reduce (acc item. cons item acc) nil);
+:reverse .=
+    reduce (acc item. cons item acc) nil;
 
-IO:define :_of
+:_of .=
     (after acc sym x.
         if Sym:is :nil x
             then after acc
             else _of after (cons x acc) sym
     );
 
-IO:define :of_using (_of reverse nil);
+:of_using .= _of reverse nil;
 
-IO:define :of (of_using :nil);
+:of .= of_using :nil;
 
 {
     cons: cons,
