@@ -147,7 +147,10 @@ class Unit {
   }
 
   public toString (): string {
-    return `(${this.value.toString()} [${renderDim(this.dim)}]) `;
+    if (dimEq(this.dim, neutralDimension))
+      return this.value.toString();
+    else
+      return '(' + this.value.toString() + ' [' + renderDim(this.dim) + ']' + ')';
   }
 }
 
