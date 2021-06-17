@@ -27,6 +27,7 @@ import {
   asAny,
   asFun,
   asTable,
+  UnexpectedType,
 } from './runtime';
 import { Map } from 'immutable';
 import { lex, Tok } from './lexer';
@@ -624,6 +625,26 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
             explanation: 'can only compute x^(1/y) if y is a non-zero integer neutral unit and x is not negative (unless y is odd)',
           }));
         return Ok(Unit(rv));
+      }),
+      '<': _binOp('<', asUnit, asUnit, (a, b) => {
+        if (!dimEq(a.dim, b.dim))
+          return Err(DimensionMismatch({left: a.dim, right: b.dim}));
+        return Ok(Bool(a.value.lt(b.value)));
+      }),
+      '>': _binOp('>', asUnit, asUnit, (a, b) => {
+        if (!dimEq(a.dim, b.dim))
+          return Err(DimensionMismatch({left: a.dim, right: b.dim}));
+        return Ok(Bool(a.value.gt(b.value)));
+      }),
+      '<=': _binOp('<=', asUnit, asUnit, (a, b) => {
+        if (!dimEq(a.dim, b.dim))
+          return Err(DimensionMismatch({left: a.dim, right: b.dim}));
+        return Ok(Bool(a.value.lte(b.value)));
+      }),
+      '>=': _binOp('>=', asUnit, asUnit, (a, b) => {
+        if (!dimEq(a.dim, b.dim))
+          return Err(DimensionMismatch({left: a.dim, right: b.dim}));
+        return Ok(Bool(a.value.gte(b.value)));
       }),
 
       '~=': _binOp('~=', asAny, asAny, (a, b) => Ok(Bool(_weakEquality(a, b)))),
