@@ -26,6 +26,7 @@ import {
   asSymb,
   asAny,
   asFun,
+  asTable,
 } from './runtime';
 import { Map } from 'immutable';
 import { lex, Tok } from './lexer';
@@ -358,6 +359,14 @@ const ModuleIO = (h: EnvHandle) =>_makeModule('IO', Map({
     }),
   }),
 
+  'unpack': Native({
+    name: 'IO:unpack',
+    fun: (tableV) => Ei.flatMap(asTable(tableV), table => {
+      table.forEach((value, name) => h.setName(name, value));
+      return Ok(unit);
+    })
+  }),
+
   'location': Str(h.location),
 
   'log': Native({
@@ -585,14 +594,8 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
       }),
 
       '.=': _binOp('.=', asSymb, asAny, (name, value, env) => {
-        const defineV = interpret(
-            ast.App({
-              fun: ast.App({ fun: ast.Name('IO'), arg: ast.Symbol('define')}),
-              arg: ast.Symbol(name)
-            }),
-            env
-          );
-        return Ei.flatMap(defineV, define => applyFunction(define, value, env));
+        h.setName(name, value);
+        return {ok: value};
       }),
 
       'meters': Native({
