@@ -58,7 +58,8 @@ export const makeParser = (options: ParseOptions): [P<Expr>, SetOptions] => {
       Comb.pair(
         nameOrOperator.neht(L.oneOf('col')),
         exprParser
-      );
+      )
+      .orSame(nameOrOperator.map(k => [k, Name(k)]));
 
     const tableContents =
       Comb.many(singleTableEntry.neht(trailingComma('rbr')))
