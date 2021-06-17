@@ -134,6 +134,10 @@ export const asFun = (v: Value): Partial<FunT> => {
   return Ok(v.value);
 };
 
+export const asAny = (v: Value): Partial<Value> => {
+  return Ok(v);
+};
+
 
 export const envRepr = (
   env: Env,

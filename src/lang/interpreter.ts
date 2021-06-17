@@ -1,4 +1,5 @@
 import { Expr, ParseOptions, Prio, Priority } from './ast';
+import * as ast from './ast';
 import { makeParser } from './parser';
 import {
   applyFunction,
@@ -22,6 +23,8 @@ import {
   DimensionMismatch,
   NotInDomain,
   Other,
+  asSymb,
+  asAny,
 } from './runtime';
 import { Map } from 'immutable';
 import { lex, Tok } from './lexer';
@@ -40,6 +43,8 @@ import * as util from 'util';
 
 const DEFAULT_PARSER_OPTIONS = {
   priorities: {
+    ':=': Prio(1, 'left'),
+
     '+': Prio(6, 'left'),
     '-': Prio(6, 'left'),
     '*': Prio(8, 'left'),
@@ -469,6 +474,22 @@ const ModuleRefl = (h: EnvHandle) => _makeModule('Refl', Map({
         return unit;
       })
   }),
+}));
+
+
+const ModuleSym = _makeModule('Sym', Map({
+  'is': Native({
+    name: 'is',
+    fun: symV => Ei.map( asSymb(symV), sym => NativeOk(
+      () => `is :${sym}`,
+      v => {
+        if (!Symbol.is(v))
+          return Bool(false);
+
+        return Bool(v.value === sym);
+      }
+    ))
+  })
 }))
 
 
@@ -538,6 +559,17 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
         return Ok(Unit(rv));
       }),
 
+      '.=': _binOp('.=', asSymb, asAny, (name, value, env) => {
+        const defineV = interpret(
+            ast.App({
+              fun: ast.App({ fun: ast.Name('IO'), arg: ast.Symbol('define')}),
+              arg: ast.Symbol(name)
+            }),
+            env
+          );
+        return Ei.flatMap(defineV, define => applyFunction(define, value, env));
+      }),
+
       'meters': Native({
         name: 'meters',
         fun: input => Ei.map(asNeutral(input), v => Unit(v, {'L': new Fraction(1)}))
@@ -564,6 +596,8 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
       '|?': _fallback,
 
       'Str': ModuleStr,
+
+      'Sym': ModuleSym,
 
       'Refl': ModuleRefl(h),
 
