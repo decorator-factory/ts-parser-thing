@@ -25,6 +25,7 @@ import {
   Other,
   asSymb,
   asAny,
+  asFun,
 } from './runtime';
 import { Map } from 'immutable';
 import { lex, Tok } from './lexer';
@@ -445,6 +446,20 @@ const ModuleStr = _makeModule('Str', Map({
 }));
 
 
+
+const _envToValue = (env: Env | null, includeGlobals: boolean): Value => {
+  if (env === null)
+    return Symbol('nil');
+
+  if (env.parent === null && !includeGlobals)
+    return Symbol('nil');
+
+  return Table(Map({
+    parent: _envToValue(env.parent, includeGlobals),
+    names: Table(env.names),
+  }));
+};
+
 const ModuleRefl = (h: EnvHandle) => _makeModule('Refl', Map({
   'lex': Native({
     name: 'lex',
@@ -473,6 +488,16 @@ const ModuleRefl = (h: EnvHandle) => _makeModule('Refl', Map({
         }
         return unit;
       })
+  }),
+  'get_closure': Native({
+    name: 'get_closure',
+    fun: (v, e) =>
+      Ei.map(asFun(v), fun => _envToValue(fun.closure, false))
+  }),
+  'get_total_closure': Native({
+    name: 'get_closure',
+    fun: (v, e) =>
+      Ei.map(asFun(v), fun => _envToValue(fun.closure, true))
   }),
 }));
 
