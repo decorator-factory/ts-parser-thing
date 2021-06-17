@@ -28,6 +28,8 @@ import {
   asFun,
   asTable,
   UnexpectedType,
+  Fun,
+  asBool,
 } from './runtime';
 import { Map } from 'immutable';
 import { lex, Tok } from './lexer';
@@ -47,7 +49,7 @@ import { matchWildcard, WILDCARD } from '@practical-fp/union-types';
 
 const DEFAULT_PARSER_OPTIONS = {
   priorities: {
-    ':=': Prio(1, 'left'),
+    '.=': Prio(0, 'left'),
 
     '+': Prio(6, 'left'),
     '-': Prio(6, 'left'),
@@ -62,6 +64,7 @@ const DEFAULT_PARSER_OPTIONS = {
     '|>': Prio(2, 'left'),
     '|?': Prio(3, 'right'),
     '$': Prio(1, 'right'),
+    '$|': Prio(-1, 'left'),
   },
   backtickPriority: Prio(20, 'right'),
   defaultPriority: Prio(5, 'left'),
@@ -526,7 +529,67 @@ const ModuleSym = _makeModule('Sym', Map({
       }
     ))
   })
-}))
+}));
+
+
+const _chain = NativeOk('Loop:chain', () => _chain);
+
+const ModuleLoop = _makeModule('Loop', Map({
+  'when': _binOp('when', asBool, asAny, (condition, fn, env) =>
+    condition
+      ? applyFunction(fn, unit, env)
+      : Ok(unit)
+  ),
+
+  'chain': _chain,
+
+  'while': NativeOk(
+    'Loop:while',
+    (condition, condEnv) => Native({
+      name: () => `Loop:while ${prettyPrint(condition)}`,
+      fun: (body, bodyEnv) => {
+        let result: Value = unit;
+
+        const breakSentinel = new Error('`break` outside of a loop');
+        const breakFn = NativeOk('break', () => { throw breakSentinel; });
+
+        const continueSentinel = new Error('`continue` outside of a loop');
+        const continueFn = NativeOk('continue', () => { throw continueSentinel; });
+
+        const bodyArg = Table(Map({ break: breakFn, continue: continueFn, }));
+
+        while (true) {
+          const cond = applyFunction(condition, unit, condEnv);
+          if ('err' in cond)
+            return cond;
+
+          if (!Bool.is(cond.ok))
+            return { err: UnexpectedType({ expected: 'boolean', got: cond.ok }) };
+
+          if (!cond.ok.value)
+            break;
+
+          let step: Partial<Value>;
+          try {
+            step = applyFunction(body, bodyArg, bodyEnv);
+          } catch (e) {
+            if (e === breakSentinel)
+              break;
+            else if (e === continueSentinel)
+              continue;
+            else
+              throw e;
+          }
+          if ('err' in step)
+            return step;
+
+          result = step.ok;
+        }
+        return { ok: result };
+      },
+    }))
+}));
+
 
 
 const asNeutral = (v: Value): Partial<Big> =>
@@ -671,7 +734,9 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
       '<<': _binOpId('<<', (a, b) => Ok(compose(a, b))),
       '>>': _binOpId('>>', (a, b) => Ok(compose(b, a))),
       '|>': _binOpId('|>', (a, f, env) => applyFunction(f, a, env)),
+
       '$': _binOpId('$', (f, a, env) => applyFunction(f, a, env)),
+      '$|': _binOpId('$|', (f, a, env) => applyFunction(f, a, env)),
 
       'true': Bool(true),
       'false': Bool(false),
@@ -686,6 +751,8 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
       'Refl': ModuleRefl(h),
 
       'IO': ModuleIO(h),
+
+      'Loop': ModuleLoop,
     })
   };
 };

@@ -1,0 +1,38 @@
+IO:unpack {
+    while: Loop:while,
+    when: Loop:when,
+    chain: Loop:chain,
+};
+
+
+# `when` is defined as:
+# :when .= (cond f. if cond then f {} else {})
+
+# `chain` is defined as:
+# :chain .= ({}. chain);
+
+
+:x .= 0;
+
+while ({}. x < 5) ({}. chain
+    $| IO:debug x
+    $| :x .= x + 1
+);
+
+
+:answer .= "42";
+
+while ({}. true) ({break, continue}. chain
+    $| IO:log "Please specify the meaning of life, universe and everything:"
+    $| :input .= IO:readLine {}
+
+    $| when (input ~= "")
+        continue
+
+    $| when (input ~= answer)
+        break
+
+    $| IO:log "Not quite."
+);
+IO:log "Correct! Press ENTER to continue.";
+IO:readLine {};

@@ -138,6 +138,13 @@ export const asAny = (v: Value): Partial<Value> => {
   return Ok(v);
 };
 
+export const asBool = (v: Value): Partial<boolean> => {
+  if (!Bool.is(v))
+    return Err(UnexpectedType({expected: 'boolean', got: v}));
+  return Ok(v.value)
+};
+
+
 
 export interface PrettyPrintOptions {
   includeWhere: false
