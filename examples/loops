@@ -1,7 +1,7 @@
 IO:unpack {
-    while: Loop:while,
-    when: Loop:when,
-    chain: Loop:chain,
+    while: Imp:while,
+    when: Imp:when,
+    chain: Imp:chain,
 };
 
 

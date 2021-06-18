@@ -532,10 +532,10 @@ const ModuleSym = _makeModule('Sym', Map({
 }));
 
 
-const _chain = NativeOk('Loop:chain', () => _chain);
+const _chain = NativeOk('Imp:chain', () => _chain);
 
-const ModuleLoop = _makeModule('Loop', Map({
-  'when': _binOp('when', asBool, asAny, (condition, fn, env) =>
+const ModuleImp = _makeModule('Imp', Map({
+  'when': _binOp('Imp:when', asBool, asAny, (condition, fn, env) =>
     condition
       ? applyFunction(fn, unit, env)
       : Ok(unit)
@@ -543,10 +543,32 @@ const ModuleLoop = _makeModule('Loop', Map({
 
   'chain': _chain,
 
+  'early_return': Native({
+    name: 'Imp:early_return',
+    fun: (funV, env) => {
+      let result: Value | null = null;
+      const sentinel = new Error('`return` outside of Imp:early_return');
+      const returnFn = NativeOk('return', value => {
+        result = value;
+        throw sentinel;
+      })
+
+      try {
+        const x = applyFunction(funV, returnFn, env);
+        return x;
+      } catch (e) {
+        if (e === sentinel) {
+          return Ok(result!);
+        } else
+          throw e;
+      }
+    }
+  }),
+
   'while': NativeOk(
-    'Loop:while',
+    'Imp:while',
     (condition, condEnv) => Native({
-      name: () => `Loop:while ${prettyPrint(condition)}`,
+      name: () => `Imp:while ${prettyPrint(condition)}`,
       fun: (body, bodyEnv) => {
         let result: Value = unit;
 
@@ -752,7 +774,7 @@ const makeEnv = (h: EnvHandle, parent: Env | null = null): Env => {
 
       'IO': ModuleIO(h),
 
-      'Loop': ModuleLoop,
+      'Imp': ModuleImp,
     })
   };
 };

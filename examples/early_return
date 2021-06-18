@@ -1,0 +1,33 @@
+:list .= IO:require 'list';
+
+IO:unpack {
+    early_return: Imp:early_return,
+    when: Imp:when,
+    chain: Imp:chain,
+};
+
+
+:users .=
+    list:of
+        {name: 'Alice', pass: '123', email: 'alice@alice.com'}
+        {name: 'Bob', pass: '456', email: 'bob@bob.com'}
+        {name: 'Charlie', pass: '789', email: 'charlie@charlie.com'}
+    :nil;
+
+
+:find_user .= ({name, pass}. early_return (return.
+    list:for_each (user.
+        when (name ~= user:name)
+            ({}. when (pass ~= user:pass)
+                ({}. return user))
+    ) users
+));
+
+
+IO:log "Enter the username:";
+:name .= IO:readLine {};
+
+IO:log "Enter the password:";
+:pass .= IO:readLine {};
+
+IO:debug (find_user {name, pass})
