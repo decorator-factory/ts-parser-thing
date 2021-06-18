@@ -26,6 +26,12 @@
             else reduce f (f initial (list:head)) (list:rest)
     );
 
+:for_each .=
+    (f list.
+        if list:empty
+            then {}
+            else ({} {}.{}) (list:head |> f) (list:rest |> for_each f));
+
 :reverse .=
     reduce (acc item. cons item acc) nil;
 
@@ -49,4 +55,5 @@
     of,
     of_using,
     reverse,
+    for_each,
 }
