@@ -15,12 +15,13 @@ IO:unpack {
     :nil;
 
 
-:find_user .= ({name, pass}. early_return (return.
-    list:for_each (user.
-        when (name ~= user:name)
-            ({}. when (pass ~= user:pass)
-                ({}. return user))
-    ) users
+:find_user .= ({name, pass}. early_return (return. chain
+    $| list:for_each (user.
+            when (name ~= user:name)
+                ({}. when (pass ~= user:pass)
+                    ({}. return user))
+        ) users
+    $| return :not_found
 ));
 
 
